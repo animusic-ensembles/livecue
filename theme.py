@@ -53,18 +53,18 @@ TIME_BG = DARK0_SOFT
 RULER = DARK0_SOFT
 PLAYHEAD = BRIGHT_RED
 
-SCENE_FONT = None
+CUE_FONT = None
 TIME_FONT = None
 RULER_MARKING_FONT = None
 
 
 def load():
     # Fonts
-    scene_font = QFont()
-    scene_font.setStyleHint(QFont.SansSerif)
-    scene_font.setFamily(scene_font.defaultFamily())
-    global SCENE_FONT
-    SCENE_FONT = scene_font
+    cue_font = QFont()
+    cue_font.setStyleHint(QFont.SansSerif)
+    cue_font.setFamily(cue_font.defaultFamily())
+    global CUE_FONT
+    CUE_FONT = cue_font
 
     time_font = QFont()
     time_font.setStyleHint(QFont.SansSerif)

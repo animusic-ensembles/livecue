@@ -40,7 +40,7 @@ class State(Enum):
     HOVERING = auto()
 
 
-class Scene:
+class Cue:
     def __init__(self, name, color):
         self.name = name
         self.color = color
@@ -53,15 +53,15 @@ class TimelineTime:
         pass
 
 
-class TimelineScene:
+class TimelineCue:
     ROUNDING_RADIUS = 3
     MIN_LENGTH = 1
 
-    def __init__(self, row, start, length, scene):
+    def __init__(self, row, start, length, cue):
         self.row = row
         self.start = start
         self.length = length
-        self.scene = scene
+        self.cue = cue
 
         self.old_start = start
         self.old_length = length
@@ -79,11 +79,11 @@ class TimelineScene:
 
         brush = QBrush()
         if state == State.NONE:
-            brush.setColor(self.scene.color)
+            brush.setColor(self.cue.color)
         elif state == State.HOVERING:
-            brush.setColor(self.scene.color.darker(120))
+            brush.setColor(self.cue.color.darker(120))
         elif state == State.SELECTED:
-            brush.setColor(self.scene.color.lighter(120))
+            brush.setColor(self.cue.color.lighter(120))
         brush.setStyle(Qt.SolidPattern)
 
         pen = QPen()
@@ -101,11 +101,11 @@ class TimelineScene:
         pen = QPen()
         pen.setColor(theme.TEXT)
 
-        fm = QFontMetrics(theme.SCENE_FONT)
-        if fm.horizontalAdvance(self.scene.name) < rect.width():
-            painter.setFont(theme.SCENE_FONT)
+        fm = QFontMetrics(theme.CUE_FONT)
+        if fm.horizontalAdvance(self.cue.name) < rect.width():
+            painter.setFont(theme.CUE_FONT)
             painter.setPen(pen)
-            painter.drawText(rect, Qt.AlignCenter, self.scene.name)
+            painter.drawText(rect, Qt.AlignCenter, self.cue.name)
 
 
 class Time(ABC):
@@ -225,8 +225,8 @@ class Timeline(QWidget):
     RULER_HEIGHT = 30
     RULER_LABEL_LEFT_OFFSET = 3
     RULER_LABEL_TOP_OFFSET = 2
-    SCENE_Y = RULER_Y + RULER_HEIGHT
-    SCENE_HEIGHT = 60
+    CUE_Y = RULER_Y + RULER_HEIGHT
+    CUE_HEIGHT = 60
     ROW_PADDING = 6
 
     # Bounds
@@ -244,11 +244,11 @@ class Timeline(QWidget):
             TimeClock(0, 30),
             TimeMusic(30 * PIXELS_PER_SECOND, 60),
         ]
-        self.scenes = [
-            TimelineScene(0, 0, 100, Scene("CAMERA 1", theme.NEUTRAL_RED)),
-            TimelineScene(1, 100, 100, Scene("MEDIA", theme.NEUTRAL_GREEN)),
-            TimelineScene(0, 300, 50, Scene("CAMERA 3", theme.NEUTRAL_BLUE)),
-            TimelineScene(0, 900, 50, Scene("CAMERA 3", theme.NEUTRAL_BLUE)),
+        self.cues = [
+            TimelineCue(0, 0, 100, Cue("CAMERA 1", theme.NEUTRAL_RED)),
+            TimelineCue(1, 100, 100, Cue("MEDIA", theme.NEUTRAL_GREEN)),
+            TimelineCue(0, 300, 50, Cue("CAMERA 3", theme.NEUTRAL_BLUE)),
+            TimelineCue(0, 900, 50, Cue("CAMERA 3", theme.NEUTRAL_BLUE)),
         ]
 
         self.selected = None
@@ -374,7 +374,7 @@ class Timeline(QWidget):
         delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
         self.moving_object.start = self.moving_old_start + delta
 
-        if isinstance(self.moving_object, TimelineScene):
+        if isinstance(self.moving_object, TimelineCue):
             # Snap to markings
             for time in self.times:
                 for marking, _ in time.markings():
@@ -386,9 +386,9 @@ class Timeline(QWidget):
                         break
 
             # Snap to rows
-            y = self.SCENE_Y
+            y = self.CUE_Y
             for row in range(self.rows):
-                y += self.SCENE_HEIGHT
+                y += self.CUE_HEIGHT
                 if e.position().y() < y:
                     self.moving_object.row = row
                     break
@@ -396,14 +396,14 @@ class Timeline(QWidget):
     def mouseMoveEvent(self, e):
         # Set hovering object
         self.hovering_object = None
-        for obj, rect in chain(self.sceneRects(), self.timeRects()):
+        for obj, rect in chain(self.cueRects(), self.timeRects()):
             if rect.contains(e.position()):
                 self.hovering_object = obj
                 break
 
         # Check object resize handles
         self.potential_resizing_object = None
-        for obj, rect in chain(self.sceneRects(), self.timeRects()):
+        for obj, rect in chain(self.cueRects(), self.timeRects()):
             left_rect = rect.adjusted(
                 -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
             )
@@ -436,15 +436,15 @@ class Timeline(QWidget):
 
         self.update()
 
-    def sceneRects(self):
-        for scene in self.scenes:
+    def cueRects(self):
+        for cue in self.cues:
             rect = QRectF(
-                scene.start * self.scale,
-                scene.row * self.SCENE_HEIGHT + self.ROW_PADDING / 2 + self.SCENE_Y,
-                scene.length * self.scale,
-                self.SCENE_HEIGHT - self.ROW_PADDING,
+                cue.start * self.scale,
+                cue.row * self.CUE_HEIGHT + self.ROW_PADDING / 2 + self.CUE_Y,
+                cue.length * self.scale,
+                self.CUE_HEIGHT - self.ROW_PADDING,
             )
-            yield scene, rect
+            yield cue, rect
 
     def timeRects(self):
         for time in self.times:
@@ -528,19 +528,19 @@ class Timeline(QWidget):
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.drawLine(
                 0,
-                i * self.SCENE_HEIGHT + self.SCENE_Y,
+                i * self.CUE_HEIGHT + self.CUE_Y,
                 self.size().width(),
-                i * self.SCENE_HEIGHT + self.SCENE_Y,
+                i * self.CUE_HEIGHT + self.CUE_Y,
             )
 
-        # Scenes
-        for scene, rect in self.sceneRects():
+        # Cues
+        for cue, rect in self.cueRects():
             state = State.NONE
-            if scene == self.hovering_object:
+            if cue == self.hovering_object:
                 state = State.HOVERING
-            if scene == self.selected:
+            if cue == self.selected:
                 state = State.SELECTED
-            scene.paint(painter, rect, state)
+            cue.paint(painter, rect, state)
 
 
 class MainWindow(QMainWindow):
