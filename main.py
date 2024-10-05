@@ -192,8 +192,6 @@ class TimeMusic(Time):
 
 
 class Timeline(QWidget):
-    ROWS = 2
-
     # Scale/Scroll-related
     SCROLL_MOVE_MULTIPLIER = 1 / 8
     SCROLL_SCALE_MULTIPLIER = 1 / 1000
@@ -217,6 +215,7 @@ class Timeline(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.rows = 2
         self.scale = 1
         self.times = [
             TimeClock(0, 30),
@@ -453,7 +452,7 @@ class Timeline(QWidget):
                     )
 
         # Rows
-        for i in range(self.ROWS + 1):
+        for i in range(self.rows + 1):
             pen = QPen()
             pen.setColor(theme.OUTLINE)
             pen.setWidth(0)
