@@ -56,6 +56,8 @@ PLAYHEAD = BRIGHT_RED
 SCENE_FONT = None
 TIME_FONT = None
 RULER_MARKING_FONT = None
+
+
 def load():
     # Fonts
     scene_font = QFont()

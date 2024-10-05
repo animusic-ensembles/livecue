@@ -28,6 +28,12 @@ import theme
 PIXELS_PER_SECOND = 20
 
 
+def chain(*iterators):
+    for iterator in iterators:
+        for element in iterator:
+            yield element
+
+
 class State(Enum):
     NONE = auto()
     SELECTED = auto()
@@ -143,6 +149,8 @@ class Time(ABC):
 
 
 class TimeClock(Time):
+    MIN_LENGTH = PIXELS_PER_SECOND
+
     def __init__(self, start, duration):
         self.start = start
         self.duration = duration
@@ -156,6 +164,11 @@ class TimeClock(Time):
     def get_length(self):
         return self.duration * PIXELS_PER_SECOND
 
+    def set_length(self, length):
+        self.duration = int(length / PIXELS_PER_SECOND)
+
+    length = property(get_length, set_length)
+
     def get_marking_label_width(self):
         return PIXELS_PER_SECOND
 
@@ -164,6 +177,8 @@ class TimeClock(Time):
 
 
 class TimeMusic(Time):
+    MIN_LENGTH = PIXELS_PER_SECOND
+
     def __init__(self, start, duration, bpm=100, time_signature="4/4", starting_bar=1):
         self.start = start
         self.duration = duration
@@ -183,6 +198,11 @@ class TimeMusic(Time):
 
     def get_length(self):
         return self.duration * 1 / self.bpm * 60 * PIXELS_PER_SECOND
+
+    def set_length(self, length):
+        self.duration = int(length * self.bpm / 60 / PIXELS_PER_SECOND)
+
+    length = property(get_length, set_length)
 
     def get_marking_label_width(self):
         return self.pixels_per_beat * self.beats_per_bar
@@ -314,8 +334,13 @@ class Timeline(QWidget):
             # Snap to markings
             for time in self.times:
                 for marking, _ in time.markings():
-                    if abs(self.resizing_object.start - marking) < self.SNAP_MARKING_PIXELS:
-                        self.resizing_object.length += self.resizing_object.start - marking
+                    if (
+                        abs(self.resizing_object.start - marking)
+                        < self.SNAP_MARKING_PIXELS
+                    ):
+                        self.resizing_object.length += (
+                            self.resizing_object.start - marking
+                        )
                         self.resizing_object.start = marking
                         break
         else:
@@ -328,7 +353,9 @@ class Timeline(QWidget):
                 for marking, _ in time.markings():
                     right = self.resizing_object.start + self.resizing_object.length
                     if abs(right - marking) < self.SNAP_MARKING_PIXELS:
-                        self.resizing_object.length = marking - self.resizing_object.start
+                        self.resizing_object.length = (
+                            marking - self.resizing_object.start
+                        )
                         break
 
         if stop:
@@ -347,38 +374,42 @@ class Timeline(QWidget):
         delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
         self.moving_object.start = self.moving_old_start + delta
 
-        # Snap to markings
-        for time in self.times:
-            for marking, _ in time.markings():
-                if abs(self.moving_object.start - marking) < self.SNAP_MARKING_PIXELS:
-                    self.moving_object.start = marking
-                    break
+        if isinstance(self.moving_object, TimelineScene):
+            # Snap to markings
+            for time in self.times:
+                for marking, _ in time.markings():
+                    if (
+                        abs(self.moving_object.start - marking)
+                        < self.SNAP_MARKING_PIXELS
+                    ):
+                        self.moving_object.start = marking
+                        break
 
-        # Snap to rows
-        y = self.SCENE_Y
-        for row in range(self.rows):
-            y += self.SCENE_HEIGHT
-            if e.position().y() < y:
-                self.moving_object.row = row
-                break
+            # Snap to rows
+            y = self.SCENE_Y
+            for row in range(self.rows):
+                y += self.SCENE_HEIGHT
+                if e.position().y() < y:
+                    self.moving_object.row = row
+                    break
 
     def mouseMoveEvent(self, e):
         # Set hovering object
         self.hovering_object = None
-        for scene, rect in self.sceneRects():
+        for obj, rect in chain(self.sceneRects(), self.timeRects()):
             if rect.contains(e.position()):
-                self.hovering_object = scene
+                self.hovering_object = obj
                 break
 
         # Check object resize handles
         self.potential_resizing_object = None
-        for scene, rect in self.sceneRects():
+        for obj, rect in chain(self.sceneRects(), self.timeRects()):
             left_rect = rect.adjusted(
                 -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
             )
             if left_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
-                self.potential_resizing_object = scene
+                self.potential_resizing_object = obj
                 break
 
             right_rect = rect.adjusted(
@@ -386,7 +417,7 @@ class Timeline(QWidget):
             )
             if right_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
-                self.potential_resizing_object = scene
+                self.potential_resizing_object = obj
                 break
 
         # Only reset cursor if not resizing and not hovering a handle
@@ -405,17 +436,25 @@ class Timeline(QWidget):
 
         self.update()
 
-    def sceneRect(self, scene):
-        return QRectF(
-            scene.start * self.scale,
-            scene.row * self.SCENE_HEIGHT + self.ROW_PADDING / 2 + self.SCENE_Y,
-            scene.length * self.scale,
-            self.SCENE_HEIGHT - self.ROW_PADDING,
-        )
-
     def sceneRects(self):
         for scene in self.scenes:
-            yield scene, self.sceneRect(scene)
+            rect = QRectF(
+                scene.start * self.scale,
+                scene.row * self.SCENE_HEIGHT + self.ROW_PADDING / 2 + self.SCENE_Y,
+                scene.length * self.scale,
+                self.SCENE_HEIGHT - self.ROW_PADDING,
+            )
+            yield scene, rect
+
+    def timeRects(self):
+        for time in self.times:
+            rect = QRectF(
+                time.start * self.scale,
+                0,
+                time.length * self.scale,
+                self.TIME_HEIGHT,
+            )
+            yield time, rect
 
     def paintEvent(self, e):
         painter = QPainter(self)
@@ -428,13 +467,7 @@ class Timeline(QWidget):
         painter.fillRect(rect, brush)
 
         # Times
-        for time in self.times:
-            rect = QRect(
-                time.start * self.scale,
-                0,
-                time.get_length() * self.scale,
-                self.TIME_HEIGHT,
-            )
+        for time, rect in self.timeRects():
             time.paint(painter, rect)
 
             # Ruler
