@@ -206,12 +206,15 @@ class Timeline(QWidget):
     RULER_LABEL_LEFT_OFFSET = 3
     RULER_LABEL_TOP_OFFSET = 2
     SCENE_Y = RULER_Y + RULER_HEIGHT
-    SCENE_HEIGHT = 50
+    SCENE_HEIGHT = 60
     ROW_PADDING = 6
 
     # Bounds
     RESIZE_INNER_BOUND = 10
     RESIZE_OUTER_BOUND = 2
+
+    # Snapping
+    SNAP_MARKING_PIXELS = 6
 
     def __init__(self):
         super().__init__()
@@ -307,10 +310,26 @@ class Timeline(QWidget):
             delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.start = self.resizing_old_start + delta
             self.resizing_object.length = self.resizing_old_length - delta
+
+            # Snap to markings
+            for time in self.times:
+                for marking, _ in time.markings():
+                    if abs(self.resizing_object.start - marking) < self.SNAP_MARKING_PIXELS:
+                        self.resizing_object.length += self.resizing_object.start - marking
+                        self.resizing_object.start = marking
+                        break
         else:
-            # resize right handle
+            # Resize right handle
             delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.length = self.resizing_old_length + delta
+
+            # Snap to markings
+            for time in self.times:
+                for marking, _ in time.markings():
+                    right = self.resizing_object.start + self.resizing_object.length
+                    if abs(right - marking) < self.SNAP_MARKING_PIXELS:
+                        self.resizing_object.length = marking - self.resizing_object.start
+                        break
 
         if stop:
             if self.resizing_object.length < 0:
@@ -327,6 +346,21 @@ class Timeline(QWidget):
 
         delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
         self.moving_object.start = self.moving_old_start + delta
+
+        # Snap to markings
+        for time in self.times:
+            for marking, _ in time.markings():
+                if abs(self.moving_object.start - marking) < self.SNAP_MARKING_PIXELS:
+                    self.moving_object.start = marking
+                    break
+
+        # Snap to rows
+        y = self.SCENE_Y
+        for row in range(self.rows):
+            y += self.SCENE_HEIGHT
+            if e.position().y() < y:
+                self.moving_object.row = row
+                break
 
     def mouseMoveEvent(self, e):
         # Set hovering object
