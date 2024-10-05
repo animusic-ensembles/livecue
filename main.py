@@ -230,15 +230,16 @@ class Timeline(QWidget):
         ]
 
         self.selected = None
-        self.hovering = None
+        self.hovering_object = None
 
         self.resizing_start_pos = None
-        self.future_resizing_object = None
+        self.potential_resizing_object = None
         self.resizing_object = None
         self.resizing_old_start = 0
         self.resizing_old_length = 0
 
         self.moving_start_pos = None
+        self.potential_moving_object = None
         self.moving_object = None
         self.moving_old_start = 0
 
@@ -261,33 +262,36 @@ class Timeline(QWidget):
 
     def mouseButtonEvent(self, e):
         if Qt.MouseButton.LeftButton & e.buttons():
-            # Start resize
-            if self.future_resizing_object:
-                self.resizing_object = self.future_resizing_object
+            # Try each in order:
+            # 1) Start resizing an object
+            # 2) Mark an object for movement
+            #
+            # Note: Starting a movement happens when the mouse moves *after* a
+            # click so it's handled in mouseMoveEvent()
+            if self.potential_resizing_object:
+                self.resizing_object = self.potential_resizing_object
                 self.handleResize(e, start=True)
-
-            # Select object
-            self.selected = self.hovering
-
-            # Start moving object (and don't allow resize + move)
-            if not self.resizing_object and self.selected:
-                self.moving_object = self.selected
-                self.handleMove(e, start=True)
+            elif self.hovering_object:
+                self.potential_moving_object = self.hovering_object
         else:
-            # Stop resize
+            # Try each in order:
+            # 1) Stop resizing an object
+            # 2) Stop moving an object
+            # 3) Select the object marked for movement that didn't move
+            # 4) Deselect an object, because the press must not have been over
+            #    an object (i.e. self.potential_moving_object = None)
+            #
             if self.resizing_object:
                 self.handleResize(e, stop=True)
                 self.resizing_object = None
-
-            if self.moving_object:
+            elif self.moving_object:
                 self.handleMove(e, stop=True)
                 self.moving_object = None
-
-            # Deselect object
-            if self.selected and not self.sceneRect(self.selected).contains(
-                e.position()
-            ):
+            elif self.potential_moving_object:
+                self.selected = self.potential_moving_object
+            else:
                 self.selected = None
+            self.potential_moving_object = None
         self.update()
 
     def handleResize(self, e, start=False, stop=False):
@@ -322,27 +326,26 @@ class Timeline(QWidget):
             self.moving_start_pos = e.position()
             self.moving_old_start = self.moving_object.start
 
-        # resize left handle
         delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
         self.moving_object.start = self.moving_old_start + delta
 
     def mouseMoveEvent(self, e):
         # Set hovering object
-        self.hovering = None
+        self.hovering_object = None
         for scene, rect in self.sceneRects():
             if rect.contains(e.position()):
-                self.hovering = scene
+                self.hovering_object = scene
                 break
 
         # Check object resize handles
-        self.future_resizing_object = None
+        self.potential_resizing_object = None
         for scene, rect in self.sceneRects():
             left_rect = rect.adjusted(
                 -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
             )
             if left_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
-                self.future_resizing_object = scene
+                self.potential_resizing_object = scene
                 break
 
             right_rect = rect.adjusted(
@@ -350,18 +353,22 @@ class Timeline(QWidget):
             )
             if right_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
-                self.future_resizing_object = scene
+                self.potential_resizing_object = scene
                 break
 
         # Only reset cursor if not resizing and not hovering a handle
-        if not self.resizing_object and not self.future_resizing_object:
+        if not self.resizing_object and not self.potential_resizing_object:
             self.setCursor(QtGui.QCursor(Qt.ArrowCursor))
 
         # Send mouse event positions to objects
         if self.resizing_object:
             self.handleResize(e)
+
         if self.moving_object:
             self.handleMove(e)
+        elif self.potential_moving_object:
+            self.moving_object = self.potential_moving_object
+            self.handleMove(e, start=True)
 
         self.update()
 
@@ -463,7 +470,7 @@ class Timeline(QWidget):
         # Scenes
         for scene, rect in self.sceneRects():
             state = State.NONE
-            if scene == self.hovering:
+            if scene == self.hovering_object:
                 state = State.HOVERING
             if scene == self.selected:
                 state = State.SELECTED
