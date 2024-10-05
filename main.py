@@ -238,6 +238,10 @@ class Timeline(QWidget):
         self.resizing_old_start = 0
         self.resizing_old_length = 0
 
+        self.moving_start_pos = None
+        self.moving_object = None
+        self.moving_old_start = 0
+
         self.setMouseTracking(True)
         self.setMinimumWidth(3000)
 
@@ -264,11 +268,20 @@ class Timeline(QWidget):
 
             # Select object
             self.selected = self.hovering
+
+            # Start moving object (and don't allow resize + move)
+            if not self.resizing_object and self.selected:
+                self.moving_object = self.selected
+                self.handleMove(e, start=True)
         else:
             # Stop resize
             if self.resizing_object:
                 self.handleResize(e, stop=True)
                 self.resizing_object = None
+
+            if self.moving_object:
+                self.handleMove(e, stop=True)
+                self.moving_object = None
 
             # Deselect object
             if self.selected and not self.sceneRect(self.selected).contains(
@@ -304,6 +317,15 @@ class Timeline(QWidget):
                 self.resizing_object.length, self.resizing_object.MIN_LENGTH
             )
 
+    def handleMove(self, e, start=False, stop=False):
+        if start:
+            self.moving_start_pos = e.position()
+            self.moving_old_start = self.moving_object.start
+
+        # resize left handle
+        delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
+        self.moving_object.start = self.moving_old_start + delta
+
     def mouseMoveEvent(self, e):
         # Set hovering object
         self.hovering = None
@@ -335,9 +357,11 @@ class Timeline(QWidget):
         if not self.resizing_object and not self.future_resizing_object:
             self.setCursor(QtGui.QCursor(Qt.ArrowCursor))
 
-        # Send mouse event positions to resizing object
+        # Send mouse event positions to objects
         if self.resizing_object:
             self.handleResize(e)
+        if self.moving_object:
+            self.handleMove(e)
 
         self.update()
 
