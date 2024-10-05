@@ -1,4 +1,4 @@
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 
 # Just the colors
 DARK0_HARD = QColor("#1d2021")
@@ -50,3 +50,29 @@ OUTLINE = DARK2
 SELECTED_OUTLINE = LIGHT4
 TEXT = LIGHT0_HARD
 TIME_BG = DARK0_SOFT
+RULER = DARK0_SOFT
+PLAYHEAD = BRIGHT_RED
+
+SCENE_FONT = None
+TIME_FONT = None
+RULER_MARKING_FONT = None
+def load():
+    # Fonts
+    scene_font = QFont()
+    scene_font.setStyleHint(QFont.SansSerif)
+    scene_font.setFamily(scene_font.defaultFamily())
+    global SCENE_FONT
+    SCENE_FONT = scene_font
+
+    time_font = QFont()
+    time_font.setStyleHint(QFont.SansSerif)
+    time_font.setFamily(time_font.defaultFamily())
+    global TIME_FONT
+    TIME_FONT = time_font
+
+    ruler_marking_font = QFont()
+    ruler_marking_font.setPixelSize(10)
+    ruler_marking_font.setStyleHint(QFont.SansSerif)
+    global RULER_MARKING_FONT
+    ruler_marking_font.setFamily(ruler_marking_font.defaultFamily())
+    RULER_MARKING_FONT = ruler_marking_font

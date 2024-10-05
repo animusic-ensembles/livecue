@@ -3,11 +3,29 @@ from abc import ABC, abstractmethod
 from enum import Enum, auto
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtGui import QPainterPath, QTransform, QColor, QPainter, QBrush, QPen, QFont, QFontMetrics
-from PySide6.QtWidgets import QWidget, QMainWindow, QApplication, QVBoxLayout, QScrollArea, QSizePolicy
+from PySide6.QtGui import (
+    QPainterPath,
+    QTransform,
+    QColor,
+    QPainter,
+    QBrush,
+    QPen,
+    QFont,
+    QFontMetrics,
+)
+from PySide6.QtWidgets import (
+    QWidget,
+    QMainWindow,
+    QApplication,
+    QVBoxLayout,
+    QScrollArea,
+    QSizePolicy,
+)
 from PySide6.QtCore import Qt, QRect, QRectF
 
-import colors
+import theme
+
+PIXELS_PER_SECOND = 20
 
 
 class State(Enum):
@@ -64,9 +82,9 @@ class TimelineScene:
 
         pen = QPen()
         if state == State.SELECTED:
-            pen.setColor(colors.SELECTED_OUTLINE)
+            pen.setColor(theme.SELECTED_OUTLINE)
         else:
-            pen.setColor(colors.OUTLINE)
+            pen.setColor(theme.OUTLINE)
         pen.setWidth(1)
 
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -75,16 +93,14 @@ class TimelineScene:
         painter.drawPath(qpp)
 
         pen = QPen()
-        pen.setColor(colors.TEXT)
+        pen.setColor(theme.TEXT)
 
-        font = QFont()
-        font.setStyleHint(QFont.SansSerif)
-        font.setFamily(font.defaultFamily())
-        
-        fm = QFontMetrics(font)
+        fm = QFontMetrics(theme.SCENE_FONT)
         if fm.horizontalAdvance(self.scene.name) < rect.width():
+            painter.setFont(theme.SCENE_FONT)
             painter.setPen(pen)
             painter.drawText(rect, Qt.AlignCenter, self.scene.name)
+
 
 class Time(ABC):
     LEFT_TEXT_OFFSET = 3
@@ -100,11 +116,11 @@ class Time(ABC):
         qpp.translate(0.5, 0.5)
 
         brush = QBrush()
-        brush.setColor(colors.TIME_BG)
+        brush.setColor(theme.TIME_BG)
         brush.setStyle(Qt.SolidPattern)
 
         pen = QPen()
-        pen.setColor(colors.OUTLINE)
+        pen.setColor(theme.OUTLINE)
         pen.setWidth(1)
 
         painter.setRenderHint(QPainter.Antialiasing, True)
@@ -113,35 +129,63 @@ class Time(ABC):
         painter.drawPath(qpp)
 
         pen = QPen()
-        pen.setColor(colors.TEXT)
+        pen.setColor(theme.TEXT)
 
-        font = QFont()
-        font.setStyleHint(QFont.SansSerif)
-        font.setFamily(font.defaultFamily())
-        
-        fm = QFontMetrics(font)
+        fm = QFontMetrics(theme.TIME_FONT)
         if fm.horizontalAdvance(self.get_name()) < rect.width():
+            painter.setFont(theme.TIME_FONT)
             painter.setPen(pen)
-            painter.drawText(rect.adjusted(self.LEFT_TEXT_OFFSET, 0, 0, 0), Qt.AlignLeft | Qt.AlignVCenter, self.get_name())
+            painter.drawText(
+                rect.adjusted(self.LEFT_TEXT_OFFSET, 0, 0, 0),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                self.get_name(),
+            )
 
 
 class TimeClock(Time):
-    PIXELS_PER_SECOND = 80
-
-    def __init__(self, start, length):
+    def __init__(self, start, duration):
         self.start = start
-        self.length= length
+        self.duration = duration
+
+    def markings(self):
+        x = self.start
+        for i in range(self.duration):
+            yield x, f"{i // 60}:{i%60:02d}"
+            x += PIXELS_PER_SECOND
+
+    def get_length(self):
+        return self.duration * PIXELS_PER_SECOND
+
+    def get_marking_label_width(self):
+        return PIXELS_PER_SECOND
+
+    def get_name(self):
+        return f"◷ {self.duration // 60}:{self.duration%60:02d}"
 
 
 class TimeMusic(Time):
-    PIXELS_PER_BEAT = 20
-
-    def __init__(self, start, length, bpm, bpb, bar_offset=0):
+    def __init__(self, start, duration, bpm=100, time_signature="4/4", starting_bar=1):
         self.start = start
+        self.duration = duration
         self.bpm = bpm
-        self.bpb = bpb
-        self.bar_offset = bar_offset
-        self.length = length
+        self.beats_per_bar = int(time_signature.split("/")[0])
+        self.starting_bar = starting_bar
+        self.pixels_per_beat = 1 / self.bpm * 60 * PIXELS_PER_SECOND
+
+    def markings(self):
+        x = self.start
+        for beat in range(self.duration):
+            if beat % self.beats_per_bar == 0:
+                yield x, f"{self.starting_bar + beat // self.beats_per_bar}"
+            else:
+                yield x, ""
+            x += self.pixels_per_beat
+
+    def get_length(self):
+        return self.duration * 1 / self.bpm * 60 * PIXELS_PER_SECOND
+
+    def get_marking_label_width(self):
+        return self.pixels_per_beat * self.beats_per_bar
 
     def get_name(self):
         return f"♩={self.bpm}"
@@ -160,7 +204,9 @@ class Timeline(QWidget):
     TIME_Y = 0
     TIME_HEIGHT = 20
     RULER_Y = TIME_HEIGHT
-    RULER_HEIGHT = 20
+    RULER_HEIGHT = 30
+    RULER_LABEL_LEFT_OFFSET = 3
+    RULER_LABEL_TOP_OFFSET = 2
     SCENE_Y = RULER_Y + RULER_HEIGHT
     SCENE_HEIGHT = 50
     ROW_PADDING = 6
@@ -174,15 +220,13 @@ class Timeline(QWidget):
         self.scale = 1
         self.times = [
             TimeClock(0, 30),
-            TimeMusic(30, 120, 120, 4),
-            TimeMusic(120, 120, 60, 4, 120),
-            TimeClock(240, 5*60),
+            TimeMusic(30 * PIXELS_PER_SECOND, 60),
         ]
         self.scenes = [
-            TimelineScene(0, 0, 100, Scene("CAMERA 1", colors.NEUTRAL_RED)),
-            TimelineScene(1, 100, 100, Scene("MEDIA", colors.NEUTRAL_GREEN)),
-            TimelineScene(0, 300, 50, Scene("CAMERA 3", colors.NEUTRAL_BLUE)),
-            TimelineScene(0, 900, 50, Scene("CAMERA 3", colors.NEUTRAL_BLUE)),
+            TimelineScene(0, 0, 100, Scene("CAMERA 1", theme.NEUTRAL_RED)),
+            TimelineScene(1, 100, 100, Scene("MEDIA", theme.NEUTRAL_GREEN)),
+            TimelineScene(0, 300, 50, Scene("CAMERA 3", theme.NEUTRAL_BLUE)),
+            TimelineScene(0, 900, 50, Scene("CAMERA 3", theme.NEUTRAL_BLUE)),
         ]
 
         self.selected = None
@@ -195,7 +239,7 @@ class Timeline(QWidget):
         self.resizing_old_length = 0
 
         self.setMouseTracking(True)
-        self.setMinimumWidth(1000)
+        self.setMinimumWidth(3000)
 
     def wheelEvent(self, e):
         modifiers = QtWidgets.QApplication.keyboardModifiers()
@@ -227,37 +271,40 @@ class Timeline(QWidget):
                 self.resizing_object = None
 
             # Deselect object
-            if self.selected and not self.sceneRect(self.selected).contains(e.position()):
+            if self.selected and not self.sceneRect(self.selected).contains(
+                e.position()
+            ):
                 self.selected = None
         self.update()
 
     def handleResize(self, e, start=False, stop=False):
         if start:
-            print("Starting resize")
             self.resizing_start_pos = e.position()
             self.resizing_old_start = self.resizing_object.start
             self.resizing_old_length = self.resizing_object.length
 
-        if self.resizing_start_pos.x() < (self.resizing_old_start + self.resizing_old_length / 2) * self.scale:
+        if (
+            self.resizing_start_pos.x()
+            < (self.resizing_old_start + self.resizing_old_length / 2) * self.scale
+        ):
             # resize left handle
-            delta = (e.position().x() - self.resizing_start_pos.x()) * 1/self.scale
+            delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.start = self.resizing_old_start + delta
             self.resizing_object.length = self.resizing_old_length - delta
         else:
             # resize right handle
-            delta = (e.position().x() - self.resizing_start_pos.x()) * 1/self.scale
+            delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.length = self.resizing_old_length + delta
 
         if stop:
-            print("Stopping resize")
             if self.resizing_object.length < 0:
                 self.resizing_object.length *= -1
                 self.resizing_object.start -= self.resizing_object.length
-            self.resizing_object.length = max(self.resizing_object.length, self.resizing_object.MIN_LENGTH)
-
+            self.resizing_object.length = max(
+                self.resizing_object.length, self.resizing_object.MIN_LENGTH
+            )
 
     def mouseMoveEvent(self, e):
-        print(e.position())
         # Set hovering object
         self.hovering = None
         for scene, rect in self.sceneRects():
@@ -268,13 +315,17 @@ class Timeline(QWidget):
         # Check object resize handles
         self.future_resizing_object = None
         for scene, rect in self.sceneRects():
-            left_rect = rect.adjusted(-self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0)
+            left_rect = rect.adjusted(
+                -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
+            )
             if left_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
                 self.future_resizing_object = scene
                 break
 
-            right_rect = rect.adjusted(rect.width() - self.RESIZE_INNER_BOUND, 0, self.RESIZE_OUTER_BOUND, 0)
+            right_rect = rect.adjusted(
+                rect.width() - self.RESIZE_INNER_BOUND, 0, self.RESIZE_OUTER_BOUND, 0
+            )
             if right_rect.contains(e.position()):
                 self.setCursor(QtGui.QCursor(Qt.SplitHCursor))
                 self.future_resizing_object = scene
@@ -307,7 +358,7 @@ class Timeline(QWidget):
 
         # Background
         brush = QBrush()
-        brush.setColor(colors.BG)
+        brush.setColor(theme.BG)
         brush.setStyle(Qt.SolidPattern)
         rect = QRect(0, 0, self.size().width(), self.size().height())
         painter.fillRect(rect, brush)
@@ -315,23 +366,75 @@ class Timeline(QWidget):
         # Times
         for time in self.times:
             rect = QRect(
-                    time.start * self.scale,
-                    0,
-                    time.length * self.scale,
-                    self.TIME_HEIGHT)
+                time.start * self.scale,
+                0,
+                time.get_length() * self.scale,
+                self.TIME_HEIGHT,
+            )
             time.paint(painter, rect)
 
-        # Ruler
+            # Ruler
+            text_pen = QPen()
+            text_pen.setColor(theme.TEXT)
+
+            ruler_pen = QPen()
+            ruler_pen.setColor(theme.RULER)
+            ruler_pen.setWidth(0)
+
+            painter.setFont(theme.RULER_MARKING_FONT)
+            for x, label in time.markings():
+                if label:
+                    # Marking text
+                    painter.setRenderHint(QPainter.Antialiasing, True)
+                    painter.setPen(text_pen)
+                    rect = QRect(
+                        x * self.scale + self.RULER_LABEL_LEFT_OFFSET,
+                        self.RULER_Y + self.RULER_LABEL_TOP_OFFSET,
+                        time.get_marking_label_width() * self.scale,
+                        self.RULER_HEIGHT / 2,
+                    )
+                    fm = QFontMetrics(theme.RULER_MARKING_FONT)
+                    if fm.horizontalAdvance(label) < rect.width():
+                        painter.drawText(
+                            rect,
+                            Qt.AlignLeft | Qt.AlignVCenter,
+                            label,
+                        )
+
+                    # Full-height marking
+                    painter.setRenderHint(QPainter.Antialiasing, False)
+                    painter.setPen(ruler_pen)
+                    painter.drawLine(
+                        x * self.scale,
+                        self.RULER_Y,
+                        x * self.scale,
+                        self.RULER_Y + self.RULER_HEIGHT,
+                    )
+                else:
+                    # Half-height marking
+                    painter.setRenderHint(QPainter.Antialiasing, False)
+                    painter.setPen(ruler_pen)
+                    painter.drawLine(
+                        x * self.scale,
+                        self.RULER_Y + self.RULER_HEIGHT / 2,
+                        x * self.scale,
+                        self.RULER_Y + self.RULER_HEIGHT,
+                    )
 
         # Rows
         for i in range(self.ROWS + 1):
             pen = QPen()
-            pen.setColor(colors.OUTLINE)
+            pen.setColor(theme.OUTLINE)
             pen.setWidth(0)
 
             painter.setPen(pen)
             painter.setRenderHint(QPainter.Antialiasing, False)
-            painter.drawLine(0, i * self.SCENE_HEIGHT + self.SCENE_Y, self.size().width(), i * self.SCENE_HEIGHT + self.SCENE_Y)
+            painter.drawLine(
+                0,
+                i * self.SCENE_HEIGHT + self.SCENE_Y,
+                self.size().width(),
+                i * self.SCENE_HEIGHT + self.SCENE_Y,
+            )
 
         # Scenes
         for scene, rect in self.sceneRects():
@@ -348,13 +451,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Timeline")
 
-
         timeline = Timeline()
-        #timeline.setLayout(QVBoxLayout())
+        # timeline.setLayout(QVBoxLayout())
 
         scroll_area = QScrollArea()
         timeline.scroll_area = scroll_area
-        #scroll_area.setWidget(timeline)
+        # scroll_area.setWidget(timeline)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         scroll_area.setWidgetResizable(True)
@@ -367,6 +469,7 @@ class MainWindow(QMainWindow):
 
 
 app = QApplication(sys.argv)
+theme.load()
 window = MainWindow()
 window.show()
 app.exec()
