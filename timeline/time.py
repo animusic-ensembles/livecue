@@ -10,6 +10,7 @@ from PySide6.QtGui import (
 from PySide6.QtCore import Qt, QRect
 
 import theme
+from .common import State
 
 
 class Time(ABC):
@@ -39,7 +40,7 @@ class Time(ABC):
     def get_marking_label_width(self):
         pass
 
-    def paint(self, painter, rect):
+    def paint(self, painter, rect, state):
         scale = rect.width() / self.get_length()
         # rect but with a height of TEXT_HEIGHT.
         text_rect = rect.adjusted(0, 0, 0, -(rect.height() - self.TEXT_HEIGHT))
@@ -54,8 +55,13 @@ class Time(ABC):
         qpp.translate(0.5, 0.5)
 
         brush = QBrush()
-        brush.setColor(theme.TIME_BG)
         brush.setStyle(Qt.SolidPattern)
+        if state == State.NONE:
+            brush.setColor(theme.TIME_BG)
+        elif state == State.HOVERING:
+            brush.setColor(theme.TIME_BG.darker(120))
+        elif state == State.SELECTED:
+            brush.setColor(theme.TIME_BG.lighter(150))
 
         pen = QPen()
         pen.setColor(theme.OUTLINE)

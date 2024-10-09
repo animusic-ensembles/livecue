@@ -59,7 +59,12 @@ class Row(ABC):
         # TODO: Display row properties
         for elem, rect in self.elementsRects():
             rect.adjust(0, y, 0, y)
-            elem.paint(painter, rect)
+            state = State.NONE
+            if elem == self.timeline.hovering_object:
+                state = State.HOVERING
+            if elem == self.timeline.selected:
+                state = State.SELECTED
+            elem.paint(painter, rect, state)
 
     def snaps(self, exclude_element):
         for elem, rect in self.elementsRects():
@@ -102,16 +107,6 @@ class SceneRow(Row):
     def __init__(self, timeline, name):
         super().__init__(timeline)
         self.name = name
-
-    def paint(self, painter, y):
-        for cue, rect in self.elementsRects():
-            rect.adjust(0, y, 0, y)
-            state = State.NONE
-            if cue == self.timeline.hovering_object:
-                state = State.HOVERING
-            if cue == self.timeline.selected:
-                state = State.SELECTED
-            cue.paint(painter, rect, state)
 
 
 class Timeline(QWidget):
