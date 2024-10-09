@@ -46,11 +46,11 @@ FADED_ORANGE = QColor("#af3a03")
 
 # UI colors
 BG = DARK0_HARD
-OUTLINE = DARK2
+OUTLINE = DARK4
 SELECTED_OUTLINE = LIGHT4
 TEXT = LIGHT0_HARD
 TIME_BG = DARK0_SOFT
-RULER = DARK0_SOFT
+RULER = DARK4
 PLAYHEAD = BRIGHT_RED
 
 # Values
@@ -77,7 +77,7 @@ def load():
     TIME_FONT = time_font
 
     ruler_marking_font = QFont()
-    ruler_marking_font.setPixelSize(10)
+    ruler_marking_font.setPixelSize(12)
     ruler_marking_font.setStyleHint(QFont.SansSerif)
     global RULER_MARKING_FONT
     ruler_marking_font.setFamily(ruler_marking_font.defaultFamily())

@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 from PySide6.QtGui import (
     QCursor,
     QPainterPath,
@@ -16,9 +18,92 @@ from PySide6.QtCore import Qt, QRect, QRectF
 import theme
 from utils import chain
 from .common import State
-from .time import TimeClock, TimeMusic
-from .cue import SceneCue
+from .time import Time, TimeClock, TimeMusic
+from .cue import LightingCue, SceneCue
 
+class Row(ABC):
+    ALLOWED_TYPES = []
+    HEIGHT = 60
+    ROW_PADDING = 0
+
+    def __init__(self, timeline, elements=[]):
+        self.timeline = timeline
+        self.elements = set()
+
+    def add(self, element):
+        self.elements.add(element)
+
+    def contains(self, element):
+        return element in self.elements
+
+    def remove(self, element):
+        self.elements.remove(element)
+
+    def canContain(self, element):
+        return any(isinstance(element, allowed_type) for allowed_type in self.ALLOWED_TYPES)
+
+    def elementsRects(self):
+        for elem in self.elements:
+            rect = QRectF(
+                elem.start * self.timeline.scale,
+                self.ROW_PADDING / 2,
+                elem.length * self.timeline.scale,
+                self.HEIGHT - self.ROW_PADDING,
+            )
+            yield elem, rect
+
+    def paint(self, painter, y):
+        # TODO: Display row properties
+        for elem, rect in self.elementsRects():
+            rect.adjust(0, y, 0, y)
+            elem.paint(painter, rect)
+
+    def snaps(self, exclude_element):
+        for elem, rect in self.elementsRects():
+            if elem == exclude_element:
+                continue
+            yield rect.x()
+            yield rect.x() + rect.width()
+
+class LabelRow(Row):
+    HEIGHT = 15
+
+class TimeRow(Row):
+    HEIGHT = 40
+    ALLOWED_TYPES = [Time]
+
+    def snaps(self, exclude_element):
+        super().snaps(exclude_element)
+        for time in self.elements:
+            if time == exclude_element:
+                continue
+            for marking, _ in time.markings():
+                yield marking
+
+class GuideRow(Row):
+    HEIGHT = 20
+
+class LightingRow(Row):
+    HEIGHT = 40
+    ALLOWED_TYPES = [LightingCue]
+
+class SceneRow(Row):
+    ALLOWED_TYPES = [SceneCue]
+    ROW_PADDING = 6
+
+    def __init__(self, timeline, name):
+        super().__init__(timeline)
+        self.name = name
+
+    def paint(self, painter, y):
+        for cue, rect in self.elementsRects():
+            rect.adjust(0, y, 0, y)
+            state = State.NONE
+            if cue == self.timeline.hovering_object:
+                state = State.HOVERING
+            if cue == self.timeline.selected:
+                state = State.SELECTED
+            cue.paint(painter, rect, state)
 
 class Timeline(QWidget):
     # Scale/Scroll-related
@@ -26,17 +111,6 @@ class Timeline(QWidget):
     SCROLL_SCALE_MULTIPLIER = 1 / 1000
     SCALE_MIN = 0.1
     SCALE_MAX = 10
-
-    # Drawing offsets
-    TIME_Y = 0
-    TIME_HEIGHT = 20
-    RULER_Y = TIME_HEIGHT
-    RULER_HEIGHT = 30
-    RULER_LABEL_LEFT_OFFSET = 3
-    RULER_LABEL_TOP_OFFSET = 2
-    CUE_Y = RULER_Y + RULER_HEIGHT
-    CUE_HEIGHT = 60
-    ROW_PADDING = 6
 
     # Bounds
     RESIZE_INNER_BOUND = 10
@@ -47,18 +121,23 @@ class Timeline(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.rows = 2
         self.scale = 1
-        self.times = [
-            TimeClock(0, 30),
-            TimeMusic(30 * theme.PIXELS_PER_SECOND, 60),
+        self.rows = [
+            LabelRow(self),
+            TimeRow(self),
+            GuideRow(self),
+            LightingRow(self),
+            SceneRow(self, "Projector"),
+            SceneRow(self, "Stream"),
         ]
-        self.cues = [
-            SceneCue(0, 0, 100, "CAMERA 1", theme.NEUTRAL_RED),
-            SceneCue(1, 100, 100, "MEDIA", theme.NEUTRAL_GREEN),
-            SceneCue(0, 300, 50, "CAMERA 3", theme.NEUTRAL_BLUE),
-            SceneCue(0, 900, 50, "CAMERA 3", theme.NEUTRAL_BLUE),
-        ]
+
+        # TODO: Remove
+        self.rows[1].add(TimeClock(0, 30))
+        self.rows[1].add(TimeMusic(30 * theme.PIXELS_PER_SECOND, 60))
+        self.rows[4].add(SceneCue(0, 0, 100, "CAMERA 1", theme.NEUTRAL_RED))
+        self.rows[4].add(SceneCue(0, 300, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
+        self.rows[4].add(SceneCue(0, 900, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
+        self.rows[5].add(SceneCue(1, 100, 100, "MEDIA", theme.NEUTRAL_GREEN))
 
         self.selected = None
         self.hovering_object = None
@@ -79,24 +158,24 @@ class Timeline(QWidget):
         self.setMinimumHeight(200)
         self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
 
-    def wheelEvent(self, e):
+    def wheelEvent(self, event):
         modifiers = QApplication.keyboardModifiers()
         if modifiers == Qt.ControlModifier:
-            self.scale += e.angleDelta().y() * self.SCROLL_SCALE_MULTIPLIER
+            self.scale += event.angleDelta().y() * self.SCROLL_SCALE_MULTIPLIER
             self.scale = max(min(self.scale, self.SCALE_MAX), self.SCALE_MIN)
         else:
             scroll_bar = self.parent().parent().horizontalScrollBar()
-            scroll_bar.setValue(scroll_bar.value() - (e.angleDelta().y() + e.angleDelta().x())* self.SCROLL_MOVE_MULTIPLIER)
+            scroll_bar.setValue(scroll_bar.value() - (event.angleDelta().y() + event.angleDelta().x()) * self.SCROLL_MOVE_MULTIPLIER)
         self.update()
 
-    def mousePressEvent(self, e):
-        self.mouseButtonEvent(e)
+    def mousePressEvent(self, event):
+        self.mouseButtonEvent(event)
 
-    def mouseReleaseEvent(self, e):
-        self.mouseButtonEvent(e)
+    def mouseReleaseEvent(self, event):
+        self.mouseButtonEvent(event)
 
-    def mouseButtonEvent(self, e):
-        if Qt.MouseButton.LeftButton & e.buttons():
+    def mouseButtonEvent(self, event):
+        if Qt.MouseButton.LeftButton & event.buttons():
             # Try each in order:
             # 1) Start resizing an object
             # 2) Mark an object for movement
@@ -105,7 +184,7 @@ class Timeline(QWidget):
             # click so it's handled in mouseMoveEvent()
             if self.potential_resizing_object:
                 self.resizing_object = self.potential_resizing_object
-                self.handleResize(e, start=True)
+                self.handleResize(event, start=True)
             elif self.hovering_object:
                 self.potential_moving_object = self.hovering_object
         else:
@@ -117,10 +196,10 @@ class Timeline(QWidget):
             #    an object (i.e. self.potential_moving_object = None)
             #
             if self.resizing_object:
-                self.handleResize(e, stop=True)
+                self.handleResize(event, stop=True)
                 self.resizing_object = None
             elif self.moving_object:
-                self.handleMove(e, stop=True)
+                self.handleMove(event, stop=True)
                 self.moving_object = None
             elif self.potential_moving_object:
                 self.selected = self.potential_moving_object
@@ -129,9 +208,9 @@ class Timeline(QWidget):
             self.potential_moving_object = None
         self.update()
 
-    def handleResize(self, e, start=False, stop=False):
+    def handleResize(self, event, start=False, stop=False):
         if start:
-            self.resizing_start_pos = e.position()
+            self.resizing_start_pos = event.position()
             self.resizing_old_start = self.resizing_object.start
             self.resizing_old_length = self.resizing_object.length
 
@@ -140,36 +219,34 @@ class Timeline(QWidget):
             < (self.resizing_old_start + self.resizing_old_length / 2) * self.scale
         ):
             # resize left handle
-            delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
+            delta = (event.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.start = self.resizing_old_start + delta
             self.resizing_object.length = self.resizing_old_length - delta
 
             # Snap to markings
-            for time in self.times:
-                for marking, _ in time.markings():
-                    if (
-                        abs(self.resizing_object.start - marking)
-                        < self.SNAP_MARKING_PIXELS
-                    ):
-                        self.resizing_object.length += (
-                            self.resizing_object.start - marking
-                        )
-                        self.resizing_object.start = marking
-                        break
+            for snap in self.snaps(self.resizing_object):
+                if (
+                    abs(self.resizing_object.start - snap)
+                    < self.SNAP_MARKING_PIXELS
+                ):
+                    self.resizing_object.length += (
+                        self.resizing_object.start - snap
+                    )
+                    self.resizing_object.start = snap
+                    break
         else:
             # Resize right handle
-            delta = (e.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
+            delta = (event.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             self.resizing_object.length = self.resizing_old_length + delta
 
             # Snap to markings
-            for time in self.times:
-                for marking, _ in time.markings():
-                    right = self.resizing_object.start + self.resizing_object.length
-                    if abs(right - marking) < self.SNAP_MARKING_PIXELS:
-                        self.resizing_object.length = (
-                            marking - self.resizing_object.start
-                        )
-                        break
+            for snap in self.snaps(self.resizing_object):
+                right = self.resizing_object.start + self.resizing_object.length
+                if abs(right - snap) < self.SNAP_MARKING_PIXELS:
+                    self.resizing_object.length = (
+                        snap - self.resizing_object.start
+                    )
+                    break
 
         if stop:
             if self.resizing_object.length < 0:
@@ -179,48 +256,64 @@ class Timeline(QWidget):
                 self.resizing_object.length, self.resizing_object.MIN_LENGTH
             )
 
-    def handleMove(self, e, start=False, stop=False):
+    def snaps(self, exclude_element):
+        yield 0
+        for row in self.rows:
+            for snap in row.snaps(exclude_element):
+                yield snap
+
+    def handleMove(self, event, start=False, stop=False):
         if start:
-            self.moving_start_pos = e.position()
+            self.moving_start_pos = event.position()
             self.moving_old_start = self.moving_object.start
 
-        delta = (e.position().x() - self.moving_start_pos.x()) * 1 / self.scale
+        delta = (event.position().x() - self.moving_start_pos.x()) * 1 / self.scale
         self.moving_object.start = self.moving_old_start + delta
 
-        if isinstance(self.moving_object, SceneCue):
-            # Snap to markings
-            for time in self.times:
-                for marking, _ in time.markings():
-                    if (
-                        abs(self.moving_object.start - marking)
-                        < self.SNAP_MARKING_PIXELS
-                    ):
-                        self.moving_object.start = marking
-                        break
+        for snap in self.snaps(self.moving_object):
+            if (abs(self.moving_object.start - snap) < self.SNAP_MARKING_PIXELS):
+                self.moving_object.start = snap
+                break
 
-            # Snap to rows
-            y = self.CUE_Y
-            for row in range(self.rows):
-                y += self.CUE_HEIGHT
-                if e.position().y() < y:
-                    self.moving_object.row = row
-                    break
+        goal_row = None
+        current_row = None
+        for row, y in self.rowsOffsets():
+            if not goal_row and event.position().y() < y + row.HEIGHT:
+                goal_row = row
+            if row.contains(self.moving_object):
+                current_row = row
 
-    def mouseMoveEvent(self, e):
+        if goal_row and current_row != goal_row and goal_row.canContain(self.moving_object):
+            goal_row.add(self.moving_object)
+            current_row.remove(self.moving_object)
+
+    def rowsOffsets(self):
+        y = 0
+        for row in self.rows:
+            yield row, y
+            y += row.HEIGHT
+
+    def elementsRects(self):
+        for row, y in self.rowsOffsets():
+            for elem, rect in row.elementsRects():
+                yield elem, rect.adjusted(0, y, 0, y)
+
+
+    def mouseMoveEvent(self, event):
         # Set hovering object
         self.hovering_object = None
-        for obj, rect in chain(self.cueRects(), self.timeRects()):
-            if rect.contains(e.position()):
+        for obj, rect in self.elementsRects():
+            if rect.contains(event.position()):
                 self.hovering_object = obj
                 break
 
         # Check object resize handles
         self.potential_resizing_object = None
-        for obj, rect in chain(self.cueRects(), self.timeRects()):
+        for obj, rect in self.elementsRects():
             left_rect = rect.adjusted(
                 -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
             )
-            if left_rect.contains(e.position()):
+            if left_rect.contains(event.position()):
                 self.setCursor(QCursor(Qt.SplitHCursor))
                 self.potential_resizing_object = obj
                 break
@@ -228,7 +321,7 @@ class Timeline(QWidget):
             right_rect = rect.adjusted(
                 rect.width() - self.RESIZE_INNER_BOUND, 0, self.RESIZE_OUTER_BOUND, 0
             )
-            if right_rect.contains(e.position()):
+            if right_rect.contains(event.position()):
                 self.setCursor(QCursor(Qt.SplitHCursor))
                 self.potential_resizing_object = obj
                 break
@@ -239,37 +332,17 @@ class Timeline(QWidget):
 
         # Send mouse event positions to objects
         if self.resizing_object:
-            self.handleResize(e)
+            self.handleResize(event)
 
         if self.moving_object:
-            self.handleMove(e)
+            self.handleMove(event)
         elif self.potential_moving_object:
             self.moving_object = self.potential_moving_object
-            self.handleMove(e, start=True)
+            self.handleMove(event, start=True)
 
         self.update()
 
-    def cueRects(self):
-        for cue in self.cues:
-            rect = QRectF(
-                cue.start * self.scale,
-                cue.row * self.CUE_HEIGHT + self.ROW_PADDING / 2 + self.CUE_Y,
-                cue.length * self.scale,
-                self.CUE_HEIGHT - self.ROW_PADDING,
-            )
-            yield cue, rect
-
-    def timeRects(self):
-        for time in self.times:
-            rect = QRectF(
-                time.start * self.scale,
-                0,
-                time.length * self.scale,
-                self.TIME_HEIGHT,
-            )
-            yield time, rect
-
-    def paintEvent(self, e):
+    def paintEvent(self, event):
         painter = QPainter(self)
 
         # Background
@@ -279,78 +352,14 @@ class Timeline(QWidget):
         rect = QRect(0, 0, self.size().width(), self.size().height())
         painter.fillRect(rect, brush)
 
-        # Times
-        for time, rect in self.timeRects():
-            time.paint(painter, rect)
+        pen = QPen()
+        pen.setColor(theme.OUTLINE)
+        pen.setWidth(0)
 
-            # Ruler
-            text_pen = QPen()
-            text_pen.setColor(theme.TEXT)
+        for row, y in self.rowsOffsets():
+            row.paint(painter, y)
 
-            ruler_pen = QPen()
-            ruler_pen.setColor(theme.RULER)
-            ruler_pen.setWidth(0)
-
-            painter.setFont(theme.RULER_MARKING_FONT)
-            for x, label in time.markings():
-                if label:
-                    # Marking text
-                    painter.setRenderHint(QPainter.Antialiasing, True)
-                    painter.setPen(text_pen)
-                    rect = QRect(
-                        x * self.scale + self.RULER_LABEL_LEFT_OFFSET,
-                        self.RULER_Y + self.RULER_LABEL_TOP_OFFSET,
-                        time.get_marking_label_width() * self.scale,
-                        self.RULER_HEIGHT / 2,
-                    )
-                    fm = QFontMetrics(theme.RULER_MARKING_FONT)
-                    if fm.horizontalAdvance(label) + self.RULER_LABEL_LEFT_OFFSET < rect.width():
-                        painter.drawText(
-                            rect,
-                            Qt.AlignLeft | Qt.AlignVCenter,
-                            label,
-                        )
-
-                    # Full-height marking
-                    painter.setRenderHint(QPainter.Antialiasing, False)
-                    painter.setPen(ruler_pen)
-                    painter.drawLine(
-                        x * self.scale,
-                        self.RULER_Y,
-                        x * self.scale,
-                        self.RULER_Y + self.RULER_HEIGHT,
-                    )
-                else:
-                    # Half-height marking
-                    painter.setRenderHint(QPainter.Antialiasing, False)
-                    painter.setPen(ruler_pen)
-                    painter.drawLine(
-                        x * self.scale,
-                        self.RULER_Y + self.RULER_HEIGHT / 2,
-                        x * self.scale,
-                        self.RULER_Y + self.RULER_HEIGHT,
-                    )
-
-        # Rows
-        for i in range(self.rows + 1):
-            pen = QPen()
-            pen.setColor(theme.OUTLINE)
-            pen.setWidth(0)
-
+            # Bottom row separator
             painter.setPen(pen)
             painter.setRenderHint(QPainter.Antialiasing, False)
-            painter.drawLine(
-                0,
-                i * self.CUE_HEIGHT + self.CUE_Y,
-                self.size().width(),
-                i * self.CUE_HEIGHT + self.CUE_Y,
-            )
-
-        # Cues
-        for cue, rect in self.cueRects():
-            state = State.NONE
-            if cue == self.hovering_object:
-                state = State.HOVERING
-            if cue == self.selected:
-                state = State.SELECTED
-            cue.paint(painter, rect, state)
+            painter.drawLine(0, y + row.HEIGHT, self.size().width(), y + row.HEIGHT)
