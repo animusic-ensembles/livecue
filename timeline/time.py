@@ -146,6 +146,7 @@ class TimeClock(Time):
         for i in range(self.duration):
             yield x, f"{i // 60}:{i%60:02d}"
             x += theme.PIXELS_PER_SECOND
+        yield x, " "
 
     def get_length(self):
         return self.duration * theme.PIXELS_PER_SECOND
@@ -181,6 +182,7 @@ class TimeMusic(Time):
             else:
                 yield x, ""
             x += self.pixels_per_beat
+        yield x, " "
 
     def get_length(self):
         return self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
