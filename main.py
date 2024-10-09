@@ -278,7 +278,8 @@ class Timeline(QWidget):
             self.scale += e.angleDelta().y() * self.SCROLL_SCALE_MULTIPLIER
             self.scale = max(min(self.scale, self.SCALE_MAX), self.SCALE_MIN)
         else:
-            self.parent().parent().horizontalScrollBar().setValue(self.parent().parent().horizontalScrollBar().value() - e.angleDelta().y() * self.SCROLL_MOVE_MULTIPLIER)
+            scroll_bar = self.parent().parent().horizontalScrollBar()
+            scroll_bar.setValue(scroll_bar.value() - (e.angleDelta().y() + e.angleDelta().x())* self.SCROLL_MOVE_MULTIPLIER)
         self.update()
 
     def mousePressEvent(self, e):
