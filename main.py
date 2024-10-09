@@ -213,7 +213,7 @@ class TimeMusic(Time):
 
 class Timeline(QWidget):
     # Scale/Scroll-related
-    SCROLL_MOVE_MULTIPLIER = 1 / 8
+    SCROLL_MOVE_MULTIPLIER = 1 / 2
     SCROLL_SCALE_MULTIPLIER = 1 / 1000
     SCALE_MIN = 0.1
     SCALE_MAX = 10
@@ -273,7 +273,8 @@ class Timeline(QWidget):
         if modifiers == Qt.ControlModifier:
             self.scale += e.angleDelta().y() * self.SCROLL_SCALE_MULTIPLIER
             self.scale = max(min(self.scale, self.SCALE_MAX), self.SCALE_MIN)
-
+        else:
+            self.parent().parent().horizontalScrollBar().setValue(self.parent().parent().horizontalScrollBar().value() - e.angleDelta().y() * self.SCROLL_MOVE_MULTIPLIER)
         self.update()
 
     def mousePressEvent(self, e):
