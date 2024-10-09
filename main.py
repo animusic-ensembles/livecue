@@ -32,9 +32,22 @@ class MainWindow(QMainWindow):
 
         left_tabs = QTabWidget()
         left_tabs.setMinimumHeight(720 / 2)
+        left_tabs.addTab(QWidget(), "Labels")
+        left_tabs.addTab(QWidget(), "Time")
+        left_tabs.addTab(QWidget(), "Guides")
+        left_tabs.addTab(QWidget(), "Lighting")
+        left_tabs.addTab(QWidget(), "Scenes")
+        left_tabs.setCurrentIndex(4)
 
         right_tabs = QTabWidget()
         right_tabs.setMinimumHeight(720 / 2)
+        right_tabs.addTab(QWidget(), "Label")
+        right_tabs.addTab(QWidget(), "Time")
+        right_tabs.addTab(QWidget(), "Guide")
+        right_tabs.addTab(QWidget(), "Lighting")
+        right_tabs.addTab(QWidget(), "Stream")
+        right_tabs.addTab(QWidget(), "Projector")
+        right_tabs.setCurrentIndex(4)
 
         left_layout = QVBoxLayout()
         left_layout.addWidget(left_tabs)
@@ -45,11 +58,16 @@ class MainWindow(QMainWindow):
         top_layout.addLayout(left_layout)
         top_layout.addLayout(right_layout)
 
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addWidget(QWidget())
+        bottom_layout.addWidget(scroll_area)
+        bottom_layout.addWidget(QWidget())
+
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         self.setCentralWidget(main_widget)
         main_layout.addLayout(top_layout)
-        main_layout.addWidget(scroll_area)
+        main_layout.addLayout(bottom_layout)
 
 
 app = QApplication(sys.argv)
