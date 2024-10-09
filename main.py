@@ -138,7 +138,7 @@ class Time(ABC):
         pen.setColor(theme.TEXT)
 
         fm = QFontMetrics(theme.TIME_FONT)
-        if fm.horizontalAdvance(self.get_name()) < rect.width():
+        if fm.horizontalAdvance(self.get_name()) + self.LEFT_TEXT_OFFSET < rect.width():
             painter.setFont(theme.TIME_FONT)
             painter.setPen(pen)
             painter.drawText(
@@ -491,7 +491,7 @@ class Timeline(QWidget):
                         self.RULER_HEIGHT / 2,
                     )
                     fm = QFontMetrics(theme.RULER_MARKING_FONT)
-                    if fm.horizontalAdvance(label) < rect.width():
+                    if fm.horizontalAdvance(label) + self.RULER_LABEL_LEFT_OFFSET < rect.width():
                         painter.drawText(
                             rect,
                             Qt.AlignLeft | Qt.AlignVCenter,
