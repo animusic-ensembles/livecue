@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QRect
 
 import theme
 
+
 class Time(ABC):
     LEFT_TEXT_OFFSET = 3
     TEXT_HEIGHT = 20
@@ -69,7 +70,10 @@ class Time(ABC):
         pen.setColor(theme.TEXT)
 
         fm = QFontMetrics(theme.TIME_FONT)
-        if fm.horizontalAdvance(self.get_name()) + self.LEFT_TEXT_OFFSET < text_rect.width():
+        if (
+            fm.horizontalAdvance(self.get_name()) + self.LEFT_TEXT_OFFSET
+            < text_rect.width()
+        ):
             painter.setFont(theme.TIME_FONT)
             painter.setPen(pen)
             painter.drawText(
@@ -99,7 +103,10 @@ class Time(ABC):
                     ruler_rect.height(),
                 )
                 fm = QFontMetrics(theme.RULER_MARKING_FONT)
-                if fm.horizontalAdvance(label) + self.RULER_LABEL_LEFT_OFFSET < label_rect.width():
+                if (
+                    fm.horizontalAdvance(label) + self.RULER_LABEL_LEFT_OFFSET
+                    < label_rect.width()
+                ):
                     painter.drawText(
                         label_rect,
                         Qt.AlignLeft | Qt.AlignTop,

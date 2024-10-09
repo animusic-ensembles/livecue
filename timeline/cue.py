@@ -74,6 +74,7 @@ class Cue(ABC):
             painter.setPen(pen)
             painter.drawText(rect, Qt.AlignCenter, self.getText())
 
+
 class SceneCue(Cue):
     def __init__(self, row, start, length, name, color):
         super().__init__(row, start, length)
@@ -85,6 +86,7 @@ class SceneCue(Cue):
 
     def getText(self):
         return self.name
+
 
 class LightingCue(Cue):
     pass
