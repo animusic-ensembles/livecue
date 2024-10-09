@@ -18,8 +18,10 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QApplication,
     QVBoxLayout,
+    QHBoxLayout,
     QScrollArea,
     QSizePolicy,
+    QTabWidget,
 )
 from PySide6.QtCore import Qt, QRect, QRectF
 
@@ -267,6 +269,8 @@ class Timeline(QWidget):
 
         self.setMouseTracking(True)
         self.setMinimumWidth(3000)
+        self.setMinimumHeight(200)
+        self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
 
     def wheelEvent(self, e):
         modifiers = QtWidgets.QApplication.keyboardModifiers()
@@ -548,21 +552,35 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Timeline")
+        self.resize(1080, 720)
 
         timeline = Timeline()
-        # timeline.setLayout(QVBoxLayout())
 
         scroll_area = QScrollArea()
-        timeline.scroll_area = scroll_area
-        # scroll_area.setWidget(timeline)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(timeline)
 
+        left_tabs = QTabWidget()
+        left_tabs.setMinimumHeight(720 / 2)
+
+        right_tabs = QTabWidget()
+        right_tabs.setMinimumHeight(720 / 2)
+
+        left_layout = QVBoxLayout()
+        left_layout.addWidget(left_tabs)
+        right_layout = QVBoxLayout()
+        right_layout.addWidget(right_tabs)
+
+        top_layout = QHBoxLayout()
+        top_layout.addLayout(left_layout)
+        top_layout.addLayout(right_layout)
+
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         self.setCentralWidget(main_widget)
+        main_layout.addLayout(top_layout)
         main_layout.addWidget(scroll_area)
 
 
