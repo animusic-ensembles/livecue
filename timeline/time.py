@@ -137,7 +137,7 @@ class Time(Element):
 class TimeClock(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
-    def __init__(self, start, duration):
+    def __init__(self, start, duration=30):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
         self._duration.valueChanged.connect(updateTimelineReceiver)
@@ -196,7 +196,7 @@ class TimeClock(Time):
 class TimeMusic(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
-    def __init__(self, start, duration, bpm=100, beats_per_bar=4, starting_bar=1):
+    def __init__(self, start, duration=50, bpm=100, beats_per_bar=4, starting_bar=1):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
         self._duration.valueChanged.connect(updateTimelineReceiver)
