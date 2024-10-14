@@ -8,12 +8,17 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QScrollArea,
     QTabWidget,
+    QGroupBox,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
 import theme
 from timeline import Timeline
 from utils import chain
+
+
+class Application(QApplication):
+    updateTimeline = Signal()
 
 
 class MainWindow(QMainWindow):
@@ -22,7 +27,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("LiveCue")
         self.resize(1080, 720)
 
-        timeline = Timeline()
+        bottom_layout = QHBoxLayout()
+        timeline = Timeline(bottom_layout)
 
         scroll_area = QScrollArea()
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -58,10 +64,7 @@ class MainWindow(QMainWindow):
         top_layout.addLayout(left_layout)
         top_layout.addLayout(right_layout)
 
-        bottom_layout = QHBoxLayout()
-        bottom_layout.addWidget(QWidget())
         bottom_layout.addWidget(scroll_area)
-        bottom_layout.addWidget(QWidget())
 
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
@@ -70,7 +73,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(bottom_layout)
 
 
-app = QApplication(sys.argv)
+app = Application(sys.argv)
 theme.load()
 window = MainWindow()
 window.show()

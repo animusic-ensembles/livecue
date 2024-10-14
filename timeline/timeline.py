@@ -60,9 +60,9 @@ class Row(ABC):
         for elem, rect in self.elementsRects():
             rect.adjust(0, y, 0, y)
             state = State.NONE
-            if elem == self.timeline.hovering_object:
+            if elem == self.timeline.hovering_element:
                 state = State.HOVERING
-            if elem == self.timeline.selected:
+            if elem == self.timeline.selected_element:
                 state = State.SELECTED
             elem.paint(painter, rect, state)
 
@@ -123,8 +123,10 @@ class Timeline(QWidget):
     # Snapping
     SNAP_MARKING_PIXELS = 6
 
-    def __init__(self):
+    def __init__(self, hboxlayout):
         super().__init__()
+        QApplication.instance().updateTimeline.connect(self.update)
+        self.hboxlayout = hboxlayout
         self.scale = 1
         self.rows = [
             LabelRow(self),
@@ -138,23 +140,23 @@ class Timeline(QWidget):
         # TODO: Remove
         self.rows[1].add(TimeClock(0, 30))
         self.rows[1].add(TimeMusic(30 * theme.PIXELS_PER_SECOND, 60))
-        self.rows[4].add(SceneCue(0, 0, 100, "CAMERA 1", theme.NEUTRAL_RED))
-        self.rows[4].add(SceneCue(0, 300, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
-        self.rows[4].add(SceneCue(0, 900, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
-        self.rows[5].add(SceneCue(1, 100, 100, "MEDIA", theme.NEUTRAL_GREEN))
+        self.rows[4].add(SceneCue(0, 100, "CAMERA 1", theme.NEUTRAL_RED))
+        self.rows[4].add(SceneCue(300, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
+        self.rows[4].add(SceneCue(900, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
+        self.rows[5].add(SceneCue(100, 100, "MEDIA", theme.NEUTRAL_GREEN))
 
-        self.selected = None
-        self.hovering_object = None
+        self.selected_element = None
+        self.hovering_element = None
 
         self.resizing_start_pos = None
-        self.potential_resizing_object = None
-        self.resizing_object = None
+        self.potential_resizing_element = None
+        self.resizing_element = None
         self.resizing_old_start = 0
         self.resizing_old_length = 0
 
         self.moving_start_pos = None
-        self.potential_moving_object = None
-        self.moving_object = None
+        self.potential_moving_element = None
+        self.moving_element = None
         self.moving_old_start = 0
 
         self.setMouseTracking(True)
@@ -190,37 +192,44 @@ class Timeline(QWidget):
             #
             # Note: Starting a movement happens when the mouse moves *after* a
             # click so it's handled in mouseMoveEvent()
-            if self.potential_resizing_object:
-                self.resizing_object = self.potential_resizing_object
+            if self.potential_resizing_element:
+                self.resizing_element = self.potential_resizing_element
                 self.handleResize(event, start=True)
-            elif self.hovering_object:
-                self.potential_moving_object = self.hovering_object
+            elif self.hovering_element:
+                self.potential_moving_element = self.hovering_element
         else:
             # Try each in order:
             # 1) Stop resizing an object
             # 2) Stop moving an object
             # 3) Select the object marked for movement that didn't move
             # 4) Deselect an object, because the press must not have been over
-            #    an object (i.e. self.potential_moving_object = None)
+            #    an object (i.e. self.potential_moving_element = None)
             #
-            if self.resizing_object:
+            if self.resizing_element:
                 self.handleResize(event, stop=True)
-                self.resizing_object = None
-            elif self.moving_object:
+                self.resizing_element = None
+            elif self.moving_element:
                 self.handleMove(event, stop=True)
-                self.moving_object = None
-            elif self.potential_moving_object:
-                self.selected = self.potential_moving_object
+                self.moving_element = None
+            elif self.potential_moving_element:
+                if self.selected_element:
+                    self.hboxlayout.removeWidget(self.selected_element.getWidget())
+                    self.selected_element.getWidget().hide()
+                self.selected_element = self.potential_moving_element
+                self.hboxlayout.addWidget(self.selected_element.getWidget())
+                self.selected_element.getWidget().show()
             else:
-                self.selected = None
-            self.potential_moving_object = None
+                self.hboxlayout.removeWidget(self.selected_element.getWidget())
+                self.selected_element.getWidget().hide()
+                self.selected_element = None
+            self.potential_moving_element = None
         self.update()
 
     def handleResize(self, event, start=False, stop=False):
         if start:
             self.resizing_start_pos = event.position()
-            self.resizing_old_start = self.resizing_object.start
-            self.resizing_old_length = self.resizing_object.length
+            self.resizing_old_start = self.resizing_element.start
+            self.resizing_old_length = self.resizing_element.length
 
         if (
             self.resizing_start_pos.x()
@@ -230,36 +239,28 @@ class Timeline(QWidget):
             delta = (
                 (event.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             )
-            self.resizing_object.start = self.resizing_old_start + delta
-            self.resizing_object.length = self.resizing_old_length - delta
+            self.resizing_element.start = self.resizing_old_start + delta
+            self.resizing_element.length = self.resizing_old_length - delta
 
             # Snap to markings
-            for snap in self.snaps(self.resizing_object):
-                if abs(self.resizing_object.start - snap) < self.SNAP_MARKING_PIXELS:
-                    self.resizing_object.length += self.resizing_object.start - snap
-                    self.resizing_object.start = snap
+            for snap in self.snaps(self.resizing_element):
+                if abs(self.resizing_element.start - snap) < self.SNAP_MARKING_PIXELS:
+                    self.resizing_element.length += self.resizing_element.start - snap
+                    self.resizing_element.start = snap
                     break
         else:
             # Resize right handle
             delta = (
                 (event.position().x() - self.resizing_start_pos.x()) * 1 / self.scale
             )
-            self.resizing_object.length = self.resizing_old_length + delta
+            self.resizing_element.length = self.resizing_old_length + delta
 
             # Snap to markings
-            for snap in self.snaps(self.resizing_object):
-                right = self.resizing_object.start + self.resizing_object.length
+            for snap in self.snaps(self.resizing_element):
+                right = self.resizing_element.start + self.resizing_element.length
                 if abs(right - snap) < self.SNAP_MARKING_PIXELS:
-                    self.resizing_object.length = snap - self.resizing_object.start
+                    self.resizing_element.length = snap - self.resizing_element.start
                     break
-
-        if stop:
-            if self.resizing_object.length < 0:
-                self.resizing_object.length *= -1
-                self.resizing_object.start -= self.resizing_object.length
-            self.resizing_object.length = max(
-                self.resizing_object.length, self.resizing_object.MIN_LENGTH
-            )
 
     def snaps(self, exclude_element):
         yield 0
@@ -270,14 +271,14 @@ class Timeline(QWidget):
     def handleMove(self, event, start=False, stop=False):
         if start:
             self.moving_start_pos = event.position()
-            self.moving_old_start = self.moving_object.start
+            self.moving_old_start = self.moving_element.start
 
         delta = (event.position().x() - self.moving_start_pos.x()) * 1 / self.scale
-        self.moving_object.start = self.moving_old_start + delta
+        self.moving_element.start = self.moving_old_start + delta
 
-        for snap in self.snaps(self.moving_object):
-            if abs(self.moving_object.start - snap) < self.SNAP_MARKING_PIXELS:
-                self.moving_object.start = snap
+        for snap in self.snaps(self.moving_element):
+            if abs(self.moving_element.start - snap) < self.SNAP_MARKING_PIXELS:
+                self.moving_element.start = snap
                 break
 
         goal_row = None
@@ -285,16 +286,16 @@ class Timeline(QWidget):
         for row, y in self.rowsOffsets():
             if not goal_row and event.position().y() < y + row.HEIGHT:
                 goal_row = row
-            if row.contains(self.moving_object):
+            if row.contains(self.moving_element):
                 current_row = row
 
         if (
             goal_row
             and current_row != goal_row
-            and goal_row.canContain(self.moving_object)
+            and goal_row.canContain(self.moving_element)
         ):
-            goal_row.add(self.moving_object)
-            current_row.remove(self.moving_object)
+            goal_row.add(self.moving_element)
+            current_row.remove(self.moving_element)
 
     def rowsOffsets(self):
         y = 0
@@ -309,21 +310,21 @@ class Timeline(QWidget):
 
     def mouseMoveEvent(self, event):
         # Set hovering object
-        self.hovering_object = None
+        self.hovering_element = None
         for obj, rect in self.elementsRects():
             if rect.contains(event.position()):
-                self.hovering_object = obj
+                self.hovering_element = obj
                 break
 
         # Check object resize handles
-        self.potential_resizing_object = None
+        self.potential_resizing_element = None
         for obj, rect in self.elementsRects():
             left_rect = rect.adjusted(
                 -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
             )
             if left_rect.contains(event.position()):
                 self.setCursor(QCursor(Qt.SplitHCursor))
-                self.potential_resizing_object = obj
+                self.potential_resizing_element = obj
                 break
 
             right_rect = rect.adjusted(
@@ -331,21 +332,21 @@ class Timeline(QWidget):
             )
             if right_rect.contains(event.position()):
                 self.setCursor(QCursor(Qt.SplitHCursor))
-                self.potential_resizing_object = obj
+                self.potential_resizing_element = obj
                 break
 
         # Only reset cursor if not resizing and not hovering a handle
-        if not self.resizing_object and not self.potential_resizing_object:
+        if not self.resizing_element and not self.potential_resizing_element:
             self.setCursor(QCursor(Qt.ArrowCursor))
 
         # Send mouse event positions to objects
-        if self.resizing_object:
+        if self.resizing_element:
             self.handleResize(event)
 
-        if self.moving_object:
+        if self.moving_element:
             self.handleMove(event)
-        elif self.potential_moving_object:
-            self.moving_object = self.potential_moving_object
+        elif self.potential_moving_element:
+            self.moving_element = self.potential_moving_element
             self.handleMove(event, start=True)
 
         self.update()

@@ -8,12 +8,14 @@ from PySide6.QtGui import (
     QFontMetrics,
 )
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QSpinBox, QLineEdit
 
 import theme
-from .common import State
+from .common import Element, State
+from utils import widgetWithLabel, updateTimelineReceiver
 
 
-class Cue(ABC):
+class Cue(Element):
     ROUNDING_RADIUS = 3
     MIN_LENGTH = 1
 
@@ -25,13 +27,20 @@ class Cue(ABC):
     def getText(self):
         pass
 
-    def __init__(self, row, start, length):
-        self.row = row
-        self.start = start
+    def __init__(self, start, length):
+        self._length = QSpinBox()
+        self._length.setMaximum(10e6)
+        self._length.valueChanged.connect(updateTimelineReceiver)
         self.length = length
+        super().__init__(start)
 
-        self.old_start = start
-        self.old_length = length
+    def set_length(self, value):
+        self._length.setValue(max(value, self.MIN_LENGTH))
+
+    def get_length(self):
+        return self._length.value()
+
+    length = property(get_length, set_length)
 
     def paint(self, painter, rect, state):
         qpp = QPainterPath()
@@ -76,16 +85,36 @@ class Cue(ABC):
 
 
 class SceneCue(Cue):
-    def __init__(self, row, start, length, name, color):
-        super().__init__(row, start, length)
+    def __init__(self, start, length, name, color):
+        self._name = QLineEdit()
+        self._name.textChanged.connect(updateTimelineReceiver)
         self.name = name
         self.color = color
+        super().__init__(start, length)
 
     def getColor(self):
         return self.color
 
     def getText(self):
         return self.name
+
+    def get_name(self):
+        return self._name.text()
+
+    def set_name(self, value):
+        self._name.setText(value)
+
+    name = property(get_name, set_name)
+
+    def createWidget(self):
+        groupbox = QGroupBox("Scene Cue")
+        vboxlayout = QVBoxLayout()
+        vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
+        vboxlayout.addLayout(widgetWithLabel(self._length, "Duration (px):"))
+        vboxlayout.addLayout(widgetWithLabel(self._name, "Cue:"))
+        vboxlayout.addStretch()
+        groupbox.setLayout(vboxlayout)
+        return groupbox
 
 
 class LightingCue(Cue):

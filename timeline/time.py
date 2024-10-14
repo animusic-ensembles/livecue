@@ -7,13 +7,15 @@ from PySide6.QtGui import (
     QPen,
     QFontMetrics,
 )
+from PySide6.QtWidgets import QApplication, QGroupBox, QVBoxLayout, QSpinBox
 from PySide6.QtCore import Qt, QRect
 
 import theme
-from .common import State
+from .common import State, Element
+from utils import widgetWithLabel, updateTimelineReceiver
 
 
-class Time(ABC):
+class Time(Element):
     LEFT_TEXT_OFFSET = 3
     TEXT_HEIGHT = 20
     SHORT_MARK_HEIGHT = 6
@@ -26,14 +28,6 @@ class Time(ABC):
 
     @abstractmethod
     def markings(self):
-        pass
-
-    @abstractmethod
-    def get_length(self):
-        pass
-
-    @abstractmethod
-    def set_length(self, length):
         pass
 
     @abstractmethod
@@ -144,8 +138,29 @@ class TimeClock(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
     def __init__(self, start, duration):
-        self.start = start
+        self._duration = QSpinBox()
+        self._duration.setMaximum(10e6)
+        self._duration.valueChanged.connect(updateTimelineReceiver)
         self.duration = duration
+        super().__init__(start)
+
+    #
+    # Definitions required by Element ABC.
+    #
+    def get_length(self):
+        return self.duration * theme.PIXELS_PER_SECOND
+
+    def set_length(self, length):
+        length = max(length, self.MIN_LENGTH)
+        self.duration = int(length / theme.PIXELS_PER_SECOND)
+
+    length = property(get_length, set_length)
+
+    #
+    # Definitions required by Time class.
+    #
+    def get_name(self):
+        return f"◷ {self.duration // 60}:{self.duration%60:02d}"
 
     def markings(self):
         x = self.start
@@ -154,31 +169,74 @@ class TimeClock(Time):
             x += theme.PIXELS_PER_SECOND
         yield x, " "
 
-    def get_length(self):
-        return self.duration * theme.PIXELS_PER_SECOND
-
-    def set_length(self, length):
-        self.duration = int(length / theme.PIXELS_PER_SECOND)
-
-    length = property(get_length, set_length)
-
     def get_marking_label_width(self):
         return theme.PIXELS_PER_SECOND
 
-    def get_name(self):
-        return f"◷ {self.duration // 60}:{self.duration%60:02d}"
+    #
+    # Properties for widget-based internal values.
+    #
+    def get_duration(self):
+        return self._duration.value()
+
+    def set_duration(self, value):
+        self._duration.setValue(value)
+
+    duration = property(get_duration, set_duration)
+
+    def createWidget(self):
+        groupbox = QGroupBox("Clock Time Element")
+        vboxlayout = QVBoxLayout()
+        vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
+        vboxlayout.addLayout(widgetWithLabel(self._duration, "Duration (sec):"))
+        vboxlayout.addStretch()
+        groupbox.setLayout(vboxlayout)
+        return groupbox
 
 
 class TimeMusic(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
-    def __init__(self, start, duration, bpm=100, time_signature="4/4", starting_bar=1):
-        self.start = start
+    def __init__(self, start, duration, bpm=100, beats_per_bar=4, starting_bar=1):
+        self._duration = QSpinBox()
+        self._duration.setMaximum(10e6)
+        self._duration.valueChanged.connect(updateTimelineReceiver)
         self.duration = duration
+        
+        self._bpm = QSpinBox()
+        self._bpm.setMinimum(1)
+        self._bpm.setMaximum(1000)
+        self._bpm.valueChanged.connect(updateTimelineReceiver)
         self.bpm = bpm
-        self.beats_per_bar = int(time_signature.split("/")[0])
+
+        self._beats_per_bar = QSpinBox()
+        self._beats_per_bar.setMinimum(1)
+        self._beats_per_bar.setMaximum(16)
+        self._beats_per_bar.valueChanged.connect(updateTimelineReceiver)
+        self.beats_per_bar = beats_per_bar
+
+        self._starting_bar = QSpinBox()
+        self._starting_bar.setMinimum(1)
+        self._starting_bar.setMaximum(1000)
+        self._starting_bar.valueChanged.connect(updateTimelineReceiver)
         self.starting_bar = starting_bar
-        self.pixels_per_beat = 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
+        super().__init__(start)
+
+
+    # Definitions required by Element ABC.
+    def get_length(self):
+        return self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
+
+    def set_length(self, length):
+        length = max(length, self.MIN_LENGTH)
+        self.duration = int(length * self.bpm / 60 / theme.PIXELS_PER_SECOND)
+
+    length = property(get_length, set_length)
+
+    #
+    # Definitions required by Time class.
+    #
+    def get_name(self):
+        return f"♩={self.bpm}"
 
     def markings(self):
         x = self.start
@@ -187,19 +245,61 @@ class TimeMusic(Time):
                 yield x, f"{self.starting_bar + beat // self.beats_per_bar}"
             else:
                 yield x, ""
-            x += self.pixels_per_beat
+            x += self.get_pixels_per_beat()
         yield x, " "
-
-    def get_length(self):
-        return self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
-
-    def set_length(self, length):
-        self.duration = int(length * self.bpm / 60 / theme.PIXELS_PER_SECOND)
-
-    length = property(get_length, set_length)
-
+    
     def get_marking_label_width(self):
-        return self.pixels_per_beat * self.beats_per_bar
+        return self.get_pixels_per_beat() * self.beats_per_bar
 
-    def get_name(self):
-        return f"♩={self.bpm}"
+    #
+    # Properties for widget-based internal values.
+    #
+    def get_duration(self):
+        return self._duration.value()
+
+    def set_duration(self, value):
+        self._duration.setValue(value)
+
+    duration = property(get_duration, set_duration)
+
+    def get_bpm(self):
+        return self._bpm.value()
+
+    def set_bpm(self, value):
+        self._bpm.setValue(value)
+
+    bpm = property(get_bpm, set_bpm)
+
+    def get_beats_per_bar(self):
+        return self._beats_per_bar.value()
+
+    def set_beats_per_bar(self, value):
+        self._beats_per_bar.setValue(value)
+
+    beats_per_bar = property(get_beats_per_bar, set_beats_per_bar)
+
+    def get_starting_bar(self):
+        return self._starting_bar.value()
+
+    def set_starting_bar(self, value):
+        self._starting_bar.setValue(value)
+
+    starting_bar = property(get_starting_bar, set_starting_bar)
+
+    def createWidget(self):
+        groupbox = QGroupBox("Music Time Element")
+        vboxlayout = QVBoxLayout()
+        vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
+        vboxlayout.addLayout(widgetWithLabel(self._duration, "Duration (beats):"))
+        vboxlayout.addLayout(widgetWithLabel(self._bpm, "BPM:"))
+        vboxlayout.addLayout(widgetWithLabel(self._beats_per_bar, "Beats per bar:"))
+        vboxlayout.addLayout(widgetWithLabel(self._starting_bar, "Starting bar:"))
+        vboxlayout.addStretch()
+        groupbox.setLayout(vboxlayout)
+        return groupbox
+
+    #
+    # Everything else.
+    #
+    def get_pixels_per_beat(self):
+        return 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
