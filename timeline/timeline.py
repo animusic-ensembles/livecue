@@ -131,20 +131,12 @@ class Timeline(QWidget):
         self.scale = 1
         self.rows = [
             LabelRow(self),
-            TimeRow(self),
             GuideRow(self),
+            TimeRow(self),
             LightingRow(self),
             SceneRow(self, "Projector"),
             SceneRow(self, "Stream"),
         ]
-
-        # TODO: Remove
-        self.rows[1].add(TimeClock(0, 30))
-        self.rows[1].add(TimeMusic(30 * theme.PIXELS_PER_SECOND, 60))
-        self.rows[4].add(SceneCue(0, 100, "CAMERA 1", theme.NEUTRAL_RED))
-        self.rows[4].add(SceneCue(300, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
-        self.rows[4].add(SceneCue(900, 50, "CAMERA 3", theme.NEUTRAL_BLUE))
-        self.rows[5].add(SceneCue(100, 100, "MEDIA", theme.NEUTRAL_GREEN))
 
         self.selected_element = None
         self.hovering_element = None
@@ -371,3 +363,10 @@ class Timeline(QWidget):
             painter.setPen(pen)
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.drawLine(0, y + row.HEIGHT, self.size().width(), y + row.HEIGHT)
+
+    def add(self, what, **kwargs):
+        element = what(0, **kwargs)
+        for row in self.rows:
+            if row.canContain(element):
+                row.add(element)
+                return
