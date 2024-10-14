@@ -24,7 +24,7 @@ from .cue import LightingCue, SceneCue
 
 class Row(ABC):
     ALLOWED_TYPES = []
-    HEIGHT = 60
+    HEIGHT = 30
     ROW_PADDING = 0
 
     def __init__(self, timeline, elements=[]):
@@ -102,6 +102,7 @@ class LightingRow(Row):
 
 class SceneRow(Row):
     ALLOWED_TYPES = [SceneCue]
+    HEIGHT = 60
     ROW_PADDING = 6
 
     def __init__(self, timeline, name):
@@ -160,9 +161,7 @@ class Timeline(QWidget):
         self.moving_old_start = 0
 
         self.setMouseTracking(True)
-        self.setMinimumWidth(3000)
-        self.setMinimumHeight(200)
-        self.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        self.setMinimumWidth(10000)
 
     def wheelEvent(self, event):
         modifiers = QApplication.keyboardModifiers()
