@@ -365,7 +365,9 @@ class Timeline(QWidget):
             painter.drawLine(0, y + row.HEIGHT, self.size().width(), y + row.HEIGHT)
 
     def add(self, what, **kwargs):
-        element = what(0, **kwargs)
+        start = 0
+        length = 100
+        element = what(start, length, **kwargs)
         for row in self.rows:
             if row.canContain(element):
                 row.add(element)

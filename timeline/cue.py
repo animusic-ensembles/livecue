@@ -27,21 +27,6 @@ class Cue(Element):
     def getText(self):
         pass
 
-    def __init__(self, start, length):
-        self._length = QSpinBox()
-        self._length.setMaximum(10e6)
-        self._length.valueChanged.connect(updateTimelineReceiver)
-        self.length = length
-        super().__init__(start)
-
-    def set_length(self, value):
-        self._length.setValue(max(value, self.MIN_LENGTH))
-
-    def get_length(self):
-        return self._length.value()
-
-    length = property(get_length, set_length)
-
     def paint(self, painter, rect, state):
         qpp = QPainterPath()
         qpp.addRoundedRect(

@@ -3,32 +3,40 @@ from enum import Enum, auto
 
 from PySide6.QtWidgets import QApplication, QSpinBox
 
+from utils import updateTimelineReceiver
+
 
 class Element(ABC):
-    def __init__(self, start):
+    MIN_LENGTH = 1
+
+    def __init__(self, start, length):
         self._start = QSpinBox()
         self._start.setMaximum(10e6)
-        self._start.valueChanged.connect(self.set_start)
+        self._start.valueChanged.connect(updateTimelineReceiver)
         self.start = start
+
+        self._length = QSpinBox()
+        self._length.setMaximum(10e6)
+        self._length.valueChanged.connect(updateTimelineReceiver)
+        self.length = length
 
         self.widget = self.createWidget()
 
+    def set_length(self, value):
+        self._length.setValue(max(value, self.MIN_LENGTH))
+
+    def get_length(self):
+        return self._length.value()
+
+    length = property(get_length, set_length)
+
     def set_start(self, value):
         self._start.setValue(value)
-        QApplication.instance().updateTimeline.emit()
 
     def get_start(self):
         return self._start.value()
     
     start = property(get_start, set_start)
-
-    @abstractmethod
-    def set_length(self, value):
-        pass
-
-    @abstractmethod
-    def get_length(self):
-        pass
 
     @abstractmethod
     def createWidget(self):

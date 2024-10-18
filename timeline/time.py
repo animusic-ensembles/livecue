@@ -137,12 +137,11 @@ class Time(Element):
 class TimeClock(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
-    def __init__(self, start, duration=30):
+    def __init__(self, start, length):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
         self._duration.valueChanged.connect(updateTimelineReceiver)
-        self.duration = duration
-        super().__init__(start)
+        super().__init__(start, length)
 
     #
     # Definitions required by Element ABC.
@@ -196,11 +195,10 @@ class TimeClock(Time):
 class TimeMusic(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
 
-    def __init__(self, start, duration=50, bpm=100, beats_per_bar=4, starting_bar=1):
+    def __init__(self, start, length, bpm=100, beats_per_bar=4, starting_bar=1):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
         self._duration.valueChanged.connect(updateTimelineReceiver)
-        self.duration = duration
         
         self._bpm = QSpinBox()
         self._bpm.setMinimum(1)
@@ -219,7 +217,7 @@ class TimeMusic(Time):
         self._starting_bar.setMaximum(1000)
         self._starting_bar.valueChanged.connect(updateTimelineReceiver)
         self.starting_bar = starting_bar
-        super().__init__(start)
+        super().__init__(start, length)
 
 
     # Definitions required by Element ABC.
