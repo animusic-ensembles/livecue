@@ -33,9 +33,9 @@ class ElementsTab(QWidget):
     COLUMNS = 4
     LAYOUT = (
         ("Labels", [("Label", TimeClock, {})]),
-        ("Guides", [("Sheet", TimeClock, {}), ("Media", TimeClock, {})]),
+        #("Guides", [("Sheet", TimeClock, {}), ("Media", TimeClock, {})]),
         ("Times", [("Clock", TimeClock, {}), ("Music", TimeMusic, {})]),
-        ("Lighting Cues", [("Lighting", TimeClock, {})]),
+        #("Lighting Cues", [("Lighting", TimeClock, {})]),
         ("Scene Cues", []),
     )
 
