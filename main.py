@@ -21,6 +21,7 @@ import theme
 from timeline import Timeline
 from utils import chain
 from elements import Scene
+from timeline.labels import Label
 from timeline.time import TimeClock, TimeMusic
 from timeline.cue import SceneCue
 
@@ -32,7 +33,7 @@ class Application(QApplication):
 class ElementsTab(QWidget):
     COLUMNS = 4
     LAYOUT = (
-        ("Labels", [("Label", TimeClock, {})]),
+        ("Labels", [("Label", Label, {})]),
         #("Guides", [("Sheet", TimeClock, {}), ("Media", TimeClock, {})]),
         ("Times", [("Clock", TimeClock, {}), ("Music", TimeMusic, {})]),
         #("Lighting Cues", [("Lighting", TimeClock, {})]),

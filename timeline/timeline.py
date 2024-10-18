@@ -20,6 +20,7 @@ from utils import chain
 from .common import State
 from .time import Time, TimeClock, TimeMusic
 from .cue import LightingCue, SceneCue
+from .labels import Label
 
 
 class Row(ABC):
@@ -76,6 +77,7 @@ class Row(ABC):
 
 class LabelRow(Row):
     HEIGHT = 15
+    ALLOWED_TYPES = [Label]
 
 
 class TimeRow(Row):
