@@ -184,6 +184,8 @@ class TimeClock(Time):
 
     def createWidget(self):
         groupbox = QGroupBox("Clock Time Element")
+        groupbox.setMaximumWidth(300)
+        groupbox.setMaximumHeight(240)
         vboxlayout = QVBoxLayout()
         vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
         vboxlayout.addLayout(widgetWithLabel(self._duration, "Duration (sec):"))
@@ -286,6 +288,8 @@ class TimeMusic(Time):
 
     def createWidget(self):
         groupbox = QGroupBox("Music Time Element")
+        groupbox.setMaximumWidth(300)
+        groupbox.setMaximumHeight(240)
         vboxlayout = QVBoxLayout()
         vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
         vboxlayout.addLayout(widgetWithLabel(self._duration, "Duration (beats):"))

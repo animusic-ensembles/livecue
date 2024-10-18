@@ -18,6 +18,8 @@ from utils import widgetWithLabel, updateTimelineReceiver
 class Cue(Element):
     ROUNDING_RADIUS = 3
     MIN_LENGTH = 1
+    TEXT_LEFT_OFFSET = 3
+    TEXT_TOP_OFFSET = 3
 
     @abstractmethod
     def getColor(self):
@@ -63,40 +65,42 @@ class Cue(Element):
         pen.setColor(theme.TEXT)
 
         fm = QFontMetrics(theme.CUE_FONT)
+        rect.adjust(self.TEXT_LEFT_OFFSET, self.TEXT_TOP_OFFSET, 0, 0)
         if fm.horizontalAdvance(self.getText()) < rect.width():
             painter.setFont(theme.CUE_FONT)
             painter.setPen(pen)
-            painter.drawText(rect, Qt.AlignCenter, self.getText())
+            painter.drawText(rect, Qt.AlignLeft, self.getText())
 
 
 class SceneCue(Cue):
-    def __init__(self, start, length, name, color):
-        self._name = QLineEdit()
-        self._name.textChanged.connect(updateTimelineReceiver)
-        self.name = name
-        self.color = color
+    def __init__(self, start, length, scene=None):
+        self._cue = QLineEdit()
+        self._cue.textChanged.connect(updateTimelineReceiver)
+        self.scene = scene
         super().__init__(start, length)
 
     def getColor(self):
-        return self.color
+        return self.scene.color
 
     def getText(self):
-        return self.name
+        return f"{self.cue}\n{self.scene.name}"
 
-    def get_name(self):
-        return self._name.text()
+    def get_cue(self):
+        return self._cue.text()
 
-    def set_name(self, value):
-        self._name.setText(value)
+    def set_cue(self, value):
+        self._cue.setText(value)
 
-    name = property(get_name, set_name)
+    cue = property(get_cue, set_cue)
 
     def createWidget(self):
         groupbox = QGroupBox("Scene Cue")
+        groupbox.setMaximumWidth(300)
+        groupbox.setMaximumHeight(240)
         vboxlayout = QVBoxLayout()
         vboxlayout.addLayout(widgetWithLabel(self._start, "Start (px):"))
         vboxlayout.addLayout(widgetWithLabel(self._length, "Duration (px):"))
-        vboxlayout.addLayout(widgetWithLabel(self._name, "Cue:"))
+        vboxlayout.addLayout(widgetWithLabel(self._cue, "Cue:"))
         vboxlayout.addStretch()
         groupbox.setLayout(vboxlayout)
         return groupbox
