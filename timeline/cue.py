@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QSpinBox, QLineEdit
 
 import theme
 from .common import Element, State
+from elements import Scene
 from utils import widgetWithLabel, updateTimelineReceiver
 
 
@@ -73,10 +74,17 @@ class Cue(Element):
 
 
 class SceneCue(Cue):
-    def __init__(self, start, length, scene=None):
+    SAVED_ATTRIBUTES = ["start", "length", "cue", "scene_id"]
+
+    def __init__(self, start, length, cue="", scene=None, scene_id=None):
+        if scene_id:
+            scene = Scene.from_id(scene_id)
+
         self._cue = QLineEdit()
         self._cue.textChanged.connect(updateTimelineReceiver)
+        self.cue = cue
         self.scene = scene
+        self.scene_id = scene.id
         super().__init__(start, length)
 
     def getColor(self):

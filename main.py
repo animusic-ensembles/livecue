@@ -48,7 +48,9 @@ class ElementsTab(QWidget):
         with open("config.toml", "rb") as f:
             data = tomllib.load(f)
             for i, scene in data["scenes"].items():
-                self.LAYOUT[-1][1].append((scene["name"], SceneCue, {"scene": Scene(**scene)}))
+                Scene(id=i, **scene)
+                #self.LAYOUT[-1][1].append((scene["name"], SceneCue, {"scene": Scene(id=i, **scene)}))
+                self.LAYOUT[-1][1].append((scene["name"], SceneCue, {"scene_id": i}))
 
         elements_layout = QVBoxLayout()
         for section, items in self.LAYOUT:
@@ -108,6 +110,8 @@ class MainWindow(QMainWindow):
         top_layout.addLayout(right_layout)
 
         bottom_layout.addWidget(scroll_area)
+
+        timeline.load()
 
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)

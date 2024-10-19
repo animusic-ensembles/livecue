@@ -1,4 +1,9 @@
+import json
+import sys
+import shutil
+import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from PySide6.QtGui import (
     QCursor,
@@ -42,6 +47,8 @@ class Row(ABC):
         self.elements.remove(element)
 
     def canContain(self, element):
+        if isinstance(element, type):
+            return element in self.ALLOWED_TYPES
         return any(
             isinstance(element, allowed_type) for allowed_type in self.ALLOWED_TYPES
         )
@@ -82,7 +89,7 @@ class LabelRow(Row):
 
 class TimeRow(Row):
     HEIGHT = 40
-    ALLOWED_TYPES = [Time]
+    ALLOWED_TYPES = [TimeClock, TimeMusic]
 
     def snaps(self, exclude_element):
         super().snaps(exclude_element)
@@ -155,6 +162,7 @@ class Timeline(QWidget):
         self.moving_old_start = 0
 
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setMinimumWidth(10000)
 
     def wheelEvent(self, event):
@@ -212,11 +220,13 @@ class Timeline(QWidget):
                 self.hboxlayout.addWidget(self.selected_element.getWidget())
                 self.selected_element.getWidget().show()
             else:
-                self.hboxlayout.removeWidget(self.selected_element.getWidget())
-                self.selected_element.getWidget().hide()
+                if self.selected_element:
+                    self.hboxlayout.removeWidget(self.selected_element.getWidget())
+                    self.selected_element.getWidget().hide()
                 self.selected_element = None
             self.potential_moving_element = None
         self.update()
+        self.save()
 
     def handleResize(self, event, start=False, stop=False):
         if start:
@@ -344,6 +354,13 @@ class Timeline(QWidget):
 
         self.update()
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete:
+            if self.selected_element:
+                self.remove(self.selected_element)
+                self.update()
+        super().keyPressEvent(event)
+
     def paintEvent(self, event):
         painter = QPainter(self)
 
@@ -366,11 +383,49 @@ class Timeline(QWidget):
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.drawLine(0, y + row.HEIGHT, self.size().width(), y + row.HEIGHT)
 
-    def add(self, what, **kwargs):
-        start = 0
-        length = 100
-        element = what(start, length, **kwargs)
+    def add(self, element_type, **kwargs):
         for row in self.rows:
-            if row.canContain(element):
-                row.add(element)
+            if row.canContain(element_type):
+                if "start" not in kwargs:
+                    kwargs["start"] = 0
+                    for element in row.elements:
+                        kwargs["start"] = max(kwargs["start"], element.start + element.length)
+                if "length" not in kwargs:
+                    kwargs["length"] = 100
+                row.add(element_type(**kwargs))
+                self.update()
+                self.save()
                 return
+
+    def remove(self, element):
+        for row in self.rows:
+            if row.contains(element):
+                row.remove(element)
+        if self.selected_element == element:
+            self.hboxlayout.removeWidget(self.selected_element.getWidget())
+            self.selected_element.getWidget().hide()
+            self.selected_element = None
+        self.update()
+        self.save()
+
+    # TODO: Move somewhere higher level, like MainWindow or Application since saving
+    # is likely to extend past the timeline in the future.
+    def save(self):
+        out = []
+        # TODO: Preserve row (for when multiple rows of the same kind can exist)
+        for row in self.rows:
+            for element in row.elements:
+                out.append((element.__class__.__name__, element.as_dict()))
+        with open("animusic.json", "w") as f:
+            f.write(json.dumps(out, indent=2))
+
+    def load(self):
+        os.makedirs("backups", exist_ok=True)
+        try:
+            shutil.copy("animusic.json", f"backups/animusic.{datetime.now().isoformat()}.json")
+            with open("animusic.json", "r") as f:
+                elements = json.loads(f.read())
+                for element, kwargs in elements:
+                    self.add(getattr(sys.modules[__name__], element), **kwargs)
+        except FileNotFoundError:
+            pass

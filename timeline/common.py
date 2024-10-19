@@ -8,6 +8,7 @@ from utils import updateTimelineReceiver
 
 class Element(ABC):
     MIN_LENGTH = 1
+    SAVED_ATTRIBUTES = ["start", "length"]
 
     def __init__(self, start, length):
         self._start = QSpinBox()
@@ -44,6 +45,12 @@ class Element(ABC):
 
     def getWidget(self):
         return self.widget
+
+    def as_dict(self):
+        out = {}
+        for attr in self.SAVED_ATTRIBUTES:
+            out[attr] = getattr(self, attr)
+        return out
 
 
 class State(Enum):

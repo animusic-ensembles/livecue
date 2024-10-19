@@ -196,6 +196,7 @@ class TimeClock(Time):
 
 class TimeMusic(Time):
     MIN_LENGTH = theme.PIXELS_PER_SECOND
+    SAVED_ATTRIBUTES = ["start", "length", "bpm", "beats_per_bar", "starting_bar"]
 
     def __init__(self, start, length, bpm=100, beats_per_bar=4, starting_bar=1):
         self._duration = QSpinBox()
