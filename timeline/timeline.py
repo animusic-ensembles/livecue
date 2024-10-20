@@ -422,7 +422,7 @@ class Timeline(QWidget):
     def load(self):
         os.makedirs("backups", exist_ok=True)
         try:
-            shutil.copy("animusic.json", f"backups/animusic.{datetime.now().strftime("%Y%m%dT%H%M%S")}.json")
+            shutil.copy("animusic.json", f"backups/animusic.{datetime.now().strftime('%Y%m%dT%H%M%S')}.json")
             with open("animusic.json", "r") as f:
                 elements = json.loads(f.read())
                 for element, kwargs in elements:
