@@ -125,6 +125,8 @@ class Timeline(QWidget):
     SCROLL_SCALE_MULTIPLIER = 1 / 1000
     SCALE_MIN = 0.1
     SCALE_MAX = 10
+    MIN_WIDTH = 100
+    MIN_EXTRA_WIDTH = 250
 
     # Bounds
     RESIZE_INNER_BOUND = 10
@@ -429,3 +431,13 @@ class Timeline(QWidget):
                     self.add(getattr(sys.modules[__name__], element), **kwargs)
         except FileNotFoundError:
             pass
+
+    def updateWidth(self):
+        w = self.MIN_WIDTH
+        for _, rect in self.elementsRects():
+            w = max(w, rect.x() + rect.width())
+        self.setMinimumWidth(w + self.MIN_EXTRA_WIDTH)
+
+    def update(self):
+        self.updateWidth()
+        super().update()
