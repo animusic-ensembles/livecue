@@ -192,9 +192,9 @@ class TimeClock(Time):
 
 
 class TimeMusic(Time):
-    SAVED_ATTRIBUTES = ["start", "length", "bpm", "beats_per_bar", "starting_bar"]
+    SAVED_ATTRIBUTES = ["start", "length", "bpm", "beats_per_bar", "starting_beat", "starting_bar"]
 
-    def __init__(self, start, length, bpm=100, beats_per_bar=4, starting_bar=1):
+    def __init__(self, start, length, bpm=100, beats_per_bar=4, starting_beat=1, starting_bar=1):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
         self._duration.valueChanged.connect(updateTimelineReceiver)
@@ -205,9 +205,16 @@ class TimeMusic(Time):
         self._bpm.valueChanged.connect(updateTimelineReceiver)
         self.bpm = bpm
 
+        self._starting_beat = QSpinBox()
+        self._starting_beat.setMinimum(1)
+        self._starting_beat.setMaximum(100)
+        self._starting_beat.valueChanged.connect(updateTimelineReceiver)
+        self.starting_beat = starting_beat
+
+        # Depends on _starting_beat being defined to set its maximum.
         self._beats_per_bar = QSpinBox()
         self._beats_per_bar.setMinimum(1)
-        self._beats_per_bar.setMaximum(16)
+        self._beats_per_bar.setMaximum(100)
         self._beats_per_bar.valueChanged.connect(updateTimelineReceiver)
         self.beats_per_bar = beats_per_bar
 
@@ -236,9 +243,12 @@ class TimeMusic(Time):
 
     def markings(self):
         x = self.start
+        if self.starting_beat != 1:
+            yield x, f"{self.starting_bar}"
         for beat in range(self.duration):
-            if beat % self.beats_per_bar == 0:
-                yield x, f"{self.starting_bar + beat // self.beats_per_bar}"
+            offset_beat = beat + self.starting_beat - 1
+            if offset_beat % self.beats_per_bar == 0:
+                yield x, f"{self.starting_bar + offset_beat // self.beats_per_bar}"
             else:
                 yield x, ""
             x += self.get_pixels_per_beat()
@@ -271,6 +281,7 @@ class TimeMusic(Time):
 
     def set_beats_per_bar(self, value):
         self._beats_per_bar.setValue(value)
+        self._starting_beat.setMaximum(value)
 
     beats_per_bar = property(get_beats_per_bar, set_beats_per_bar)
 
@@ -282,6 +293,14 @@ class TimeMusic(Time):
 
     starting_bar = property(get_starting_bar, set_starting_bar)
 
+    def get_starting_beat(self):
+        return self._starting_beat.value()
+
+    def set_starting_beat(self, value):
+        self._starting_beat.setValue(value)
+
+    starting_beat = property(get_starting_beat, set_starting_beat)
+
     def createWidget(self):
         groupbox = QGroupBox("Music Time Element")
         groupbox.setMaximumWidth(300)
@@ -292,6 +311,7 @@ class TimeMusic(Time):
         vboxlayout.addLayout(widgetWithLabel(self._bpm, "BPM:"))
         vboxlayout.addLayout(widgetWithLabel(self._beats_per_bar, "Beats per bar:"))
         vboxlayout.addLayout(widgetWithLabel(self._starting_bar, "Starting bar:"))
+        vboxlayout.addLayout(widgetWithLabel(self._starting_beat, "Starting beat:"))
         vboxlayout.addStretch()
         groupbox.setLayout(vboxlayout)
         return groupbox
