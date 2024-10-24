@@ -135,8 +135,6 @@ class Time(Element):
 
 
 class TimeClock(Time):
-    MIN_LENGTH = theme.PIXELS_PER_SECOND
-
     def __init__(self, start, length):
         self._duration = QSpinBox()
         self._duration.setMaximum(10e6)
@@ -150,8 +148,7 @@ class TimeClock(Time):
         return self.duration * theme.PIXELS_PER_SECOND
 
     def set_length(self, length):
-        length = max(length, self.MIN_LENGTH)
-        self.duration = int(length / theme.PIXELS_PER_SECOND)
+        self.duration = max(int(length / theme.PIXELS_PER_SECOND), 1)
 
     length = property(get_length, set_length)
 
@@ -195,7 +192,6 @@ class TimeClock(Time):
 
 
 class TimeMusic(Time):
-    MIN_LENGTH = theme.PIXELS_PER_SECOND
     SAVED_ATTRIBUTES = ["start", "length", "bpm", "beats_per_bar", "starting_bar"]
 
     def __init__(self, start, length, bpm=100, beats_per_bar=4, starting_bar=1):
@@ -228,8 +224,7 @@ class TimeMusic(Time):
         return self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
 
     def set_length(self, length):
-        length = max(length, self.MIN_LENGTH)
-        self.duration = int(length * self.bpm / 60 / theme.PIXELS_PER_SECOND)
+        self.duration = max(int(length * self.bpm / 60 / theme.PIXELS_PER_SECOND), 1)
 
     length = property(get_length, set_length)
 
