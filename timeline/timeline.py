@@ -122,8 +122,8 @@ class SceneRow(Row):
 class Timeline(QWidget):
     # Scale/Scroll-related
     SCROLL_MOVE_MULTIPLIER = 1 / 2
-    SCROLL_SCALE_MULTIPLIER = 1 / 1000
-    SCALE_MIN = 0.1
+    SCROLL_SCALE_MULTIPLIER = 1 / 5000
+    SCALE_MIN = 0.01
     SCALE_MAX = 10
     MIN_WIDTH = 100
     MIN_EXTRA_WIDTH = 250
@@ -168,12 +168,17 @@ class Timeline(QWidget):
         self.setMinimumWidth(10000)
 
     def wheelEvent(self, event):
+        scroll_bar = self.parent().parent().horizontalScrollBar()
         modifiers = QApplication.keyboardModifiers()
         if modifiers == Qt.ControlModifier:
-            self.scale += event.angleDelta().y() * self.SCROLL_SCALE_MULTIPLIER
+            old_scale = self.scale
+            self.scale += event.angleDelta().y() * self.scale * self.SCROLL_SCALE_MULTIPLIER
             self.scale = max(min(self.scale, self.SCALE_MAX), self.SCALE_MIN)
+
+            # Scroll to maintain relative position of cursor on the timeline.
+            mouse_pos = self.mapFromGlobal(QCursor.pos())
+            scroll_bar.setValue((mouse_pos.x()) * self.scale / old_scale - (mouse_pos.x() - scroll_bar.value()))
         else:
-            scroll_bar = self.parent().parent().horizontalScrollBar()
             scroll_bar.setValue(
                 scroll_bar.value()
                 - (event.angleDelta().y() + event.angleDelta().x())
