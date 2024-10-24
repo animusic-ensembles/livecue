@@ -126,7 +126,7 @@ class Timeline(QWidget):
     SCALE_MIN = 0.01
     SCALE_MAX = 10
     MIN_WIDTH = 100
-    MIN_EXTRA_WIDTH = 250
+    EXTRA_WIDTH = 250
 
     # Bounds
     RESIZE_INNER_BOUND = 10
@@ -165,7 +165,7 @@ class Timeline(QWidget):
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        self.setMinimumWidth(10000)
+        self.setMinimumWidth(self.MIN_WIDTH + self.EXTRA_WIDTH)
 
     def wheelEvent(self, event):
         scroll_bar = self.parent().parent().horizontalScrollBar()
@@ -177,7 +177,9 @@ class Timeline(QWidget):
 
             # Scroll to maintain relative position of cursor on the timeline.
             mouse_pos = self.mapFromGlobal(QCursor.pos())
-            scroll_bar.setValue((mouse_pos.x()) * self.scale / old_scale - (mouse_pos.x() - scroll_bar.value()))
+            new_value = (mouse_pos.x()) * self.scale / old_scale - (mouse_pos.x() - scroll_bar.value())
+            self.update()
+            scroll_bar.setValue(new_value)
         else:
             scroll_bar.setValue(
                 scroll_bar.value()
@@ -441,7 +443,7 @@ class Timeline(QWidget):
         w = self.MIN_WIDTH
         for _, rect in self.elementsRects():
             w = max(w, rect.x() + rect.width())
-        self.setMinimumWidth(w + self.MIN_EXTRA_WIDTH)
+        self.setMinimumWidth(w + self.EXTRA_WIDTH)
 
     def update(self):
         self.updateWidth()
