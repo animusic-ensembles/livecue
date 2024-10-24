@@ -75,11 +75,11 @@ class Row(ABC):
             elem.paint(painter, rect, state)
 
     def snaps(self, exclude_element):
-        for elem, rect in self.elementsRects():
+        for elem in self.elements:
             if elem == exclude_element:
                 continue
-            yield rect.x()
-            yield rect.x() + rect.width()
+            yield elem.start
+            yield elem.start + elem.length
 
 
 class LabelRow(Row):
