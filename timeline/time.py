@@ -145,7 +145,7 @@ class TimeClock(Time):
     # Definitions required by Element ABC.
     #
     def get_length(self):
-        return self.duration * theme.PIXELS_PER_SECOND
+        return int(self.duration * theme.PIXELS_PER_SECOND)
 
     def set_length(self, length):
         self.duration = max(int(length / theme.PIXELS_PER_SECOND), 1)
@@ -228,7 +228,7 @@ class TimeMusic(Time):
 
     # Definitions required by Element ABC.
     def get_length(self):
-        return self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND
+        return int(self.duration * 1 / self.bpm * 60 * theme.PIXELS_PER_SECOND)
 
     def set_length(self, length):
         self.duration = max(int(length * self.bpm / 60 / theme.PIXELS_PER_SECOND), 1)
