@@ -123,7 +123,7 @@ class Timeline(QWidget):
     # Scale/Scroll-related
     SCROLL_MOVE_MULTIPLIER = 1 / 2
     SCROLL_SCALE_MULTIPLIER = 1 / 5000
-    SCALE_MIN = 0.01
+    SCALE_MIN = 0.001
     SCALE_MAX = 10
     MIN_WIDTH = 100
     EXTRA_WIDTH = 250
@@ -133,13 +133,13 @@ class Timeline(QWidget):
     RESIZE_OUTER_BOUND = 2
 
     # Snapping
-    SNAP_MARKING_PIXELS = 6
+    SNAP_MARKING_PIXELS = 240
 
     def __init__(self, hboxlayout):
         super().__init__()
         QApplication.instance().updateTimeline.connect(self.update)
         self.hboxlayout = hboxlayout
-        self.scale = 1
+        self.scale = 0.05
         self.rows = [
             LabelRow(self),
             GuideRow(self),
@@ -400,8 +400,9 @@ class Timeline(QWidget):
                     for element in row.elements:
                         kwargs["start"] = max(kwargs["start"], element.start + element.length)
                 if "length" not in kwargs:
-                    kwargs["length"] = 100
-                row.add(element_type(**kwargs))
+                    kwargs["length"] = 1000
+                element = element_type(**kwargs)
+                row.add(element)
                 self.update()
                 self.save()
                 return
