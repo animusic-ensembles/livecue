@@ -426,7 +426,7 @@ class Timeline(QWidget):
         out = []
         # TODO: Preserve row (for when multiple rows of the same kind can exist)
         for row in self.rows:
-            for element in row.elements:
+            for element in sorted(row.elements, key=lambda x : x.start):
                 out.append((element.__class__.__name__, element.as_dict()))
         with open("animusic.json", "w") as f:
             f.write(json.dumps(out, indent=2))
