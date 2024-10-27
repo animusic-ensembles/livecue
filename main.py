@@ -33,7 +33,7 @@ class Application(QApplication):
 class ElementsTab(QWidget):
     COLUMNS = 4
     LAYOUT = (
-        ("Labels", [("Label", Label, {})]),
+        ("Labels", [("Label", Label, {}), ("MCs", Label, {"length": 5000, "text": "MCs"})]),
         #("Guides", [("Sheet", TimeClock, {}), ("Media", TimeClock, {})]),
         ("Times", [("Clock", TimeClock, {}), ("Music", TimeMusic, {})]),
         #("Lighting Cues", [("Lighting", TimeClock, {})]),
