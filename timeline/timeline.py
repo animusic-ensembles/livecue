@@ -194,6 +194,15 @@ class Timeline(QWidget):
     def mouseReleaseEvent(self, event):
         self.mouseButtonEvent(event)
 
+    def select(self, element):
+        if self.selected_element:
+            self.hboxlayout.removeWidget(self.selected_element.getWidget())
+            self.selected_element.getWidget().hide()
+        self.selected_element = element
+        if self.selected_element:
+            self.hboxlayout.addWidget(self.selected_element.getWidget())
+            self.selected_element.getWidget().show()
+
     def mouseButtonEvent(self, event):
         if Qt.MouseButton.LeftButton & event.buttons():
             # Try each in order:
@@ -222,17 +231,9 @@ class Timeline(QWidget):
                 self.handleMove(event, stop=True)
                 self.moving_element = None
             elif self.potential_moving_element:
-                if self.selected_element:
-                    self.hboxlayout.removeWidget(self.selected_element.getWidget())
-                    self.selected_element.getWidget().hide()
-                self.selected_element = self.potential_moving_element
-                self.hboxlayout.addWidget(self.selected_element.getWidget())
-                self.selected_element.getWidget().show()
+                self.select(self.potential_moving_element)
             else:
-                if self.selected_element:
-                    self.hboxlayout.removeWidget(self.selected_element.getWidget())
-                    self.selected_element.getWidget().hide()
-                self.selected_element = None
+                self.select(None)
             self.potential_moving_element = None
         self.update()
         self.save()
@@ -405,7 +406,8 @@ class Timeline(QWidget):
                 row.add(element)
                 self.update()
                 self.save()
-                return
+                self.select(element)
+                break
 
     def remove(self, element):
         for row in self.rows:
