@@ -137,7 +137,7 @@ class Timeline(QWidget):
 
     def __init__(self, hboxlayout):
         super().__init__()
-        QApplication.instance().updateTimeline.connect(self.update)
+        QApplication.instance().updateTimeline.connect(self.updateTimeline)
         self.hboxlayout = hboxlayout
         self.scale = 0.05
         self.rows = [
@@ -445,6 +445,10 @@ class Timeline(QWidget):
         for _, rect in self.elementsRects():
             w = max(w, rect.x() + rect.width())
         self.setMinimumWidth(w + self.EXTRA_WIDTH)
+
+    def updateTimeline(self):
+        self.save()
+        self.update()
 
     def update(self):
         self.updateWidth()
