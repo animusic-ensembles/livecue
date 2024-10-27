@@ -1,5 +1,6 @@
 import sys
 import tomllib
+import faulthandler
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -120,6 +121,7 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(bottom_layout)
 
 
+faulthandler.enable()
 app = Application(sys.argv)
 theme.load()
 window = MainWindow()
