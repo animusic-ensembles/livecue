@@ -11,7 +11,6 @@ from PySide6.QtGui import (
     QPainter,
     QBrush,
     QPen,
-    QFontMetrics,
 )
 from PySide6.QtWidgets import (
     QWidget,
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QRect, QRectF
 
 import theme
-from utils import chain
+from utils import chain, textWidth
 from .common import State
 from .time import Time, TimeClock, TimeMusic
 from .cue import LightingCue, SceneCue

@@ -5,7 +5,6 @@ from PySide6.QtGui import (
     QPainter,
     QBrush,
     QPen,
-    QFontMetrics,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QSpinBox, QLineEdit
@@ -13,7 +12,7 @@ from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QSpinBox, QLineEdit
 import theme
 from .common import Element, State
 from elements import Scene
-from utils import widgetWithLabel, updateTimelineReceiver
+from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
 class Cue(Element):
@@ -65,9 +64,8 @@ class Cue(Element):
         pen = QPen()
         pen.setColor(theme.TEXT)
 
-        fm = QFontMetrics(theme.CUE_FONT)
         rect.adjust(self.TEXT_LEFT_OFFSET, self.TEXT_TOP_OFFSET, 0, 0)
-        if fm.horizontalAdvance(self.getText()) < rect.width():
+        if textWidth(theme.CUE_FONT, self.getText()) < rect.width():
             painter.setFont(theme.CUE_FONT)
             painter.setPen(pen)
             painter.drawText(rect, Qt.AlignLeft, self.getText())

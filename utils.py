@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel
+from PySide6.QtGui import QFontMetrics
 
 def chain(*iterators):
     for iterator in iterators:
@@ -14,3 +15,9 @@ def widgetWithLabel(widget, label_text):
 
 def updateTimelineReceiver(self, *args):
     QApplication.instance().updateTimeline.emit()
+
+TEXT_WIDTH_CACHE = {}
+def textWidth(font, text):
+    if (font, text) not in TEXT_WIDTH_CACHE:
+        TEXT_WIDTH_CACHE[(font, text)] = QFontMetrics(font).horizontalAdvance(text)
+    return TEXT_WIDTH_CACHE[(font, text)]

@@ -3,14 +3,13 @@ from PySide6.QtGui import (
     QPainter,
     QBrush,
     QPen,
-    QFontMetrics,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QLineEdit
 
 import theme
 from .common import Element, State
-from utils import widgetWithLabel, updateTimelineReceiver
+from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
 class Label(Element):
@@ -63,9 +62,8 @@ class Label(Element):
         pen = QPen()
         pen.setColor(theme.TEXT)
 
-        fm = QFontMetrics(theme.CUE_FONT)
         rect.adjust(self.TEXT_LEFT_OFFSET, self.TEXT_TOP_OFFSET, 0, 0)
-        if fm.horizontalAdvance(self.text) < rect.width():
+        if textWidth(theme.CUE_FONT, self.text) < rect.width():
             painter.setFont(theme.CUE_FONT)
             painter.setPen(pen)
             painter.drawText(rect, Qt.AlignLeft, self.text)

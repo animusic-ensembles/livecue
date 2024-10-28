@@ -5,14 +5,13 @@ from PySide6.QtGui import (
     QPainter,
     QBrush,
     QPen,
-    QFontMetrics,
 )
 from PySide6.QtWidgets import QApplication, QGroupBox, QVBoxLayout, QSpinBox
 from PySide6.QtCore import Qt, QRect
 
 import theme
 from .common import State, Element
-from utils import widgetWithLabel, updateTimelineReceiver
+from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
 class Time(Element):
@@ -69,9 +68,8 @@ class Time(Element):
         pen = QPen()
         pen.setColor(theme.TEXT)
 
-        fm = QFontMetrics(theme.TIME_FONT)
         if (
-            fm.horizontalAdvance(self.get_name()) + self.LEFT_TEXT_OFFSET
+            textWidth(theme.TIME_FONT, self.get_name()) + self.LEFT_TEXT_OFFSET
             < text_rect.width()
         ):
             painter.setFont(theme.TIME_FONT)
@@ -102,9 +100,8 @@ class Time(Element):
                     self.get_marking_label_width() * scale,
                     ruler_rect.height(),
                 )
-                fm = QFontMetrics(theme.RULER_MARKING_FONT)
                 if (
-                    fm.horizontalAdvance(label) + self.RULER_LABEL_LEFT_OFFSET
+                    textWidth(theme.RULER_MARKING_FONT, label) + self.RULER_LABEL_LEFT_OFFSET
                     < label_rect.width()
                 ):
                     painter.drawText(
