@@ -62,9 +62,11 @@ class Row(ABC):
             )
             yield elem, rect
 
-    def paint(self, painter, y):
+    def paint(self, painter, y, bounds):
         # TODO: Display row properties
         for elem, rect in self.elementsRects():
+            if rect.x() > bounds[1] or rect.x() + rect.width() < bounds[0]:
+                continue
             rect.adjust(0, y, 0, y)
             state = State.NONE
             if elem == self.timeline.hovering_element:
@@ -384,8 +386,12 @@ class Timeline(QWidget):
         pen.setColor(theme.OUTLINE)
         pen.setWidth(0)
 
+        # Rendering bounds
+        scroll_bar = self.parent().parent().horizontalScrollBar()
+        bounds = scroll_bar.value(), scroll_bar.value() + scroll_bar.width()
+
         for row, y in self.rowsOffsets():
-            row.paint(painter, y)
+            row.paint(painter, y, bounds)
 
             # Bottom row separator
             painter.setPen(pen)
