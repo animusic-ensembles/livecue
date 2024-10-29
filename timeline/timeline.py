@@ -34,16 +34,19 @@ class Row(ABC):
 
     def __init__(self, timeline, elements=[]):
         self.timeline = timeline
-        self.elements = set()
+        self.elements_set = set()
+        self.elements = []
 
     def add(self, element):
-        self.elements.add(element)
+        self.elements_set.add(element)
+        self.elements = sorted(self.elements_set, key=lambda e : e.start)
 
     def contains(self, element):
-        return element in self.elements
+        return element in self.elements_set
 
     def remove(self, element):
-        self.elements.remove(element)
+        self.elements_set.remove(element)
+        self.elements = sorted(self.elements_set, key=lambda e : e.start)
 
     def canContain(self, element):
         if isinstance(element, type):
