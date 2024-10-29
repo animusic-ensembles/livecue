@@ -68,8 +68,10 @@ class Row(ABC):
     def paint(self, painter, y, bounds):
         # TODO: Display row properties
         for elem, rect in self.elementsRects():
-            if rect.x() > bounds[1] or rect.x() + rect.width() < bounds[0]:
+            if rect.x() + rect.width() < bounds[0]:
                 continue
+            if rect.x() > bounds[1]:
+                break
             rect.adjust(0, y, 0, y)
             state = State.NONE
             if elem == self.timeline.hovering_element:
@@ -370,9 +372,20 @@ class Timeline(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Delete:
-            if self.selected_element:
-                self.remove(self.selected_element)
-                self.update()
+            if not self.selected_element:
+                super().keyPressEvent(event)
+                return
+
+            for row in self.rows:
+                if row.contains(self.selected_element):
+                    for i, e in enumerate(row.elements):
+                        if e == self.selected_element:
+                            break
+                    self.remove(self.selected_element, row=row)
+
+                    # Select previous element
+                    if i > 0:
+                        self.select(row.elements[i - 1])
         super().keyPressEvent(event)
 
     def paintEvent(self, event):
@@ -417,10 +430,12 @@ class Timeline(QWidget):
                 self.select(element)
                 break
 
-    def remove(self, element):
-        for row in self.rows:
-            if row.contains(element):
-                row.remove(element)
+    def remove(self, element, row=None):
+        if not row:
+            for r in self.rows:
+                if r.contains(element):
+                    row = r
+        row.remove(element)
         if self.selected_element == element:
             self.hboxlayout.removeWidget(self.selected_element.getWidget())
             self.selected_element.getWidget().hide()
