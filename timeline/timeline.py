@@ -20,22 +20,23 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QRect, QRectF
 
 import theme
-from utils import chain, textWidth
-from .common import State
+from utils import chain, textWidth, saveProject
+from .common import State, TimelineElement
 from .time import Time, TimeClock, TimeMusic
 from .cue import LightingCue, SceneCue
 from .labels import Label
 
 
 class Row(ABC):
+    SAVED_ATTRIBUTES = []
     ALLOWED_TYPES = []
     HEIGHT = 30
     ROW_PADDING = 0
 
     def __init__(self, timeline, elements=[]):
         self.timeline = timeline
-        self.elements_set = set()
-        self.elements = []
+        self.elements = elements
+        self.elements_set = set(self.elements)
 
     def add(self, element):
         self.elements_set.add(element)
@@ -87,6 +88,22 @@ class Row(ABC):
             yield elem.start
             yield elem.start + elem.length
 
+    def save(self):
+        out = {
+            "type": self.__class__.__name__,
+            "elements": [element.save() for element in self.elements]
+        }
+        for attr in self.SAVED_ATTRIBUTES:
+            out[attr] = getattr(self, attr)
+        return out
+
+    @classmethod
+    def load(cls, timeline, type, elements, **kwargs):
+        row_type = getattr(sys.modules[__name__], type)
+        elements = [TimelineElement.load(**element) for element in elements]
+        kwargs["elements"] = elements
+        return row_type(timeline, **kwargs)
+
 
 class LabelRow(Row):
     HEIGHT = 15
@@ -116,12 +133,13 @@ class LightingRow(Row):
 
 
 class SceneRow(Row):
+    SAVED_ATTRIBUTES = ["name"]
     ALLOWED_TYPES = [SceneCue]
     HEIGHT = 60
     ROW_PADDING = 6
 
-    def __init__(self, timeline, name):
-        super().__init__(timeline)
+    def __init__(self, timeline, name, elements=[]):
+        super().__init__(timeline, elements)
         self.name = name
 
 
@@ -141,19 +159,12 @@ class Timeline(QWidget):
     # Snapping
     SNAP_MARKING_PIXELS = 240
 
-    def __init__(self, hboxlayout):
+    def __init__(self, hboxlayout, scale=0.05):
         super().__init__()
         QApplication.instance().updateTimeline.connect(self.updateTimeline)
         self.hboxlayout = hboxlayout
-        self.scale = 0.05
-        self.rows = [
-            LabelRow(self),
-            GuideRow(self),
-            TimeRow(self),
-            LightingRow(self),
-            SceneRow(self, "Projector"),
-            SceneRow(self, "Stream"),
-        ]
+        self.scale = scale
+        self.rows = []
 
         self.selected_element = None
         self.hovering_element = None
@@ -242,7 +253,7 @@ class Timeline(QWidget):
                 self.select(None)
             self.potential_moving_element = None
         self.update()
-        self.save()
+        saveProject()
 
     def handleResize(self, event, start=False, stop=False):
         if start:
@@ -426,7 +437,7 @@ class Timeline(QWidget):
                 element = element_type(**kwargs)
                 row.add(element)
                 self.update()
-                self.save()
+                saveProject()
                 self.select(element)
                 break
 
@@ -441,29 +452,20 @@ class Timeline(QWidget):
             self.selected_element.getWidget().hide()
             self.selected_element = None
         self.update()
-        self.save()
+        saveProject()
 
-    # TODO: Move somewhere higher level, like MainWindow or Application since saving
-    # is likely to extend past the timeline in the future.
     def save(self):
-        out = []
-        # TODO: Preserve row (for when multiple rows of the same kind can exist)
-        for row in self.rows:
-            for element in sorted(row.elements, key=lambda x : x.start):
-                out.append((element.__class__.__name__, element.as_dict()))
-        with open("animusic.json", "w") as f:
-            f.write(json.dumps(out, indent=2))
+        return {
+            "scale": self.scale,
+            "rows": [row.save() for row in self.rows],
+        }
 
-    def load(self):
-        os.makedirs("backups", exist_ok=True)
-        try:
-            shutil.copy("animusic.json", f"backups/animusic.{datetime.now().strftime('%Y%m%dT%H%M%S')}.json")
-            with open("animusic.json", "r") as f:
-                elements = json.loads(f.read())
-                for element, kwargs in elements:
-                    self.add(getattr(sys.modules[__name__], element), **kwargs)
-        except FileNotFoundError:
-            pass
+    @classmethod
+    def load(cls, hboxlayout, scale, rows):
+        timeline = cls(hboxlayout, scale)
+        timeline.rows = [Row.load(timeline, **row) for row in rows]
+        timeline.update()
+        return timeline
 
     def updateWidth(self):
         w = self.MIN_WIDTH
@@ -472,7 +474,7 @@ class Timeline(QWidget):
         self.setMinimumWidth(w + self.EXTRA_WIDTH)
 
     def updateTimeline(self):
-        self.save()
+        saveProject()
         self.update()
 
     def update(self):

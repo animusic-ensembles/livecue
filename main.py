@@ -1,6 +1,10 @@
 import sys
 import tomllib
+import json
 import faulthandler
+import os
+import shutil
+from datetime import datetime
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -21,58 +25,54 @@ from PySide6.QtCore import Qt, Signal
 import theme
 from timeline import Timeline
 from utils import chain
-from elements import Scene
-from timeline.labels import Label
-from timeline.time import TimeClock, TimeMusic
-from timeline.cue import SceneCue
+from project import Scene, SCENES, ProjectElement
+from timeline import Label, TimeClock, TimeMusic, SceneCue
 
 
 class Application(QApplication):
     updateTimeline = Signal()
+    saveProject = Signal()
 
 
-class ElementsTab(QWidget):
+class PresetsTab(QWidget):
     COLUMNS = 4
-    LAYOUT = (
-        ("Labels", [("Label", Label, {}), ("MCs", Label, {"length": 5000, "text": "MCs"})]),
-        #("Guides", [("Sheet", TimeClock, {}), ("Media", TimeClock, {})]),
-        ("Times", [("Clock", TimeClock, {}), ("Music", TimeMusic, {})]),
-        #("Lighting Cues", [("Lighting", TimeClock, {})]),
-        ("Scene Cues", []),
-    )
+
+    @classmethod
+    def load(cls, timeline, presets):
+        tab = cls(timeline)
+        # TODO: Don't do this. Save properly.
+        tab._presets = presets
+
+        elements_layout = QVBoxLayout()
+        for section in presets:
+            header = section["header"]
+            elements_layout.addWidget(QLabel(header))
+            section_layout = QGridLayout()
+            i = 0
+            for item in section["items"]:
+                button = QPushButton(item["label"])
+                button.clicked.connect(tab.element_adder(getattr(sys.modules[__name__], item["type"]), **item["kwargs"]))
+                section_layout.addWidget(button, i // tab.COLUMNS, i % tab.COLUMNS)
+                i += 1
+            # Add blanks to fill columns
+            for j in range(tab.COLUMNS - i % tab.COLUMNS):
+                section_layout.addWidget(QWidget(), i // tab.COLUMNS, i % tab.COLUMNS)
+                i += 1
+            elements_layout.addLayout(section_layout)
+        elements_layout.addStretch()
+
+        tab.setLayout(elements_layout)
+        return tab
+
+    def save(self):
+        # TODO: Don't do this. Save properly.
+        return self._presets
 
     def __init__(self, timeline):
         super().__init__()
         self.timeline = timeline
 
-        self.scenes = []
-        with open("config.toml", "rb") as f:
-            data = tomllib.load(f)
-            for i, scene in data["scenes"].items():
-                Scene(id=i, **scene)
-                #self.LAYOUT[-1][1].append((scene["name"], SceneCue, {"scene": Scene(id=i, **scene)}))
-                self.LAYOUT[-1][1].append((scene["name"], SceneCue, {"scene_id": i}))
-
-        elements_layout = QVBoxLayout()
-        for section, items in self.LAYOUT:
-            elements_layout.addWidget(QLabel(section))
-            section_layout = QGridLayout()
-            i = 0
-            for label, element_type, kwargs in items:
-                button = QPushButton(label)
-                button.clicked.connect(self.element_adder(element_type, kwargs))
-                section_layout.addWidget(button, i // self.COLUMNS, i % self.COLUMNS)
-                i += 1
-            # Add blanks to fill columns
-            for j in range(self.COLUMNS - i % self.COLUMNS):
-                section_layout.addWidget(QWidget(), i // self.COLUMNS, i % self.COLUMNS)
-                i += 1
-            elements_layout.addLayout(section_layout)
-        elements_layout.addStretch()
-
-        self.setLayout(elements_layout)
-
-    def element_adder(self, element_type, kwargs):
+    def element_adder(self, element_type, **kwargs):
         return lambda : self.timeline.add(element_type, **kwargs)
 
 
@@ -82,8 +82,23 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("LiveCue")
         self.resize(1080, 720)
 
+        data = None
+        os.makedirs("backups", exist_ok=True)
+        try:
+            shutil.copy("animusic.json", f"backups/animusic.{datetime.now().strftime('%Y%m%dT%H%M%S')}.json")
+            with open("animusic.json", "r") as f:
+                data = json.loads(f.read())
+        except FileNotFoundError:
+            pass
+
         bottom_layout = QHBoxLayout()
-        timeline = Timeline(bottom_layout)
+        if data:
+            for element in data["project"]["elements"]:
+                ProjectElement.load(**element)
+            self.timeline = Timeline.load(bottom_layout, **data["timeline"])
+        else:
+            self.timeline = Timeline(bottom_layout)
+        QApplication.instance().saveProject.connect(self.save)
 
         scroll_area = QScrollArea()
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -91,11 +106,15 @@ class MainWindow(QMainWindow):
         scroll_area.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         scroll_area.setMinimumHeight(240)
         scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(timeline)
+        scroll_area.setWidget(self.timeline)
 
         left_tabs = QTabWidget()
         left_tabs.setMinimumHeight(720 / 2)
-        left_tabs.addTab(ElementsTab(timeline), "Elements")
+        if data:
+            self.presets_tab = PresetsTab.load(self.timeline, data["presets"])
+        else:
+            self.presets_tab = PresetsTab(self.timeline)
+        left_tabs.addTab(self.presets_tab, "Presets")
 
         right_tabs = QTabWidget()
         right_tabs.setMinimumHeight(720 / 2)
@@ -112,13 +131,23 @@ class MainWindow(QMainWindow):
 
         bottom_layout.addWidget(scroll_area)
 
-        timeline.load()
-
         main_widget = QWidget()
         main_layout = QVBoxLayout(main_widget)
         self.setCentralWidget(main_widget)
         main_layout.addLayout(top_layout)
         main_layout.addLayout(bottom_layout)
+
+    def save(self):
+        project_elements = []
+        out = {
+            "project": {
+                "elements": [scene.save() for scene in SCENES.values()],
+            },
+            "presets": self.presets_tab.save(),
+            "timeline": self.timeline.save(),
+        }
+        with open("animusic.json", "w") as f:
+            f.write(json.dumps(out, indent=2))
 
 
 faulthandler.enable()

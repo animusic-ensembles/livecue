@@ -13,8 +13,11 @@ def widgetWithLabel(widget, label_text):
     hbox.addWidget(widget)
     return hbox
 
-def updateTimelineReceiver(self, *args):
+def updateTimelineReceiver(*args):
     QApplication.instance().updateTimeline.emit()
+
+def saveProject(*args):
+    QApplication.instance().saveProject.emit()
 
 TEXT_WIDTH_CACHE = {}
 def textWidth(font, text):

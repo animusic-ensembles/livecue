@@ -10,11 +10,11 @@ from PySide6.QtWidgets import QApplication, QGroupBox, QVBoxLayout, QSpinBox
 from PySide6.QtCore import Qt, QRect
 
 import theme
-from .common import State, Element
+from .common import State, TimelineElement
 from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
-class Time(Element):
+class Time(TimelineElement):
     LEFT_TEXT_OFFSET = 3
     TEXT_HEIGHT = 20
     SHORT_MARK_HEIGHT = 6

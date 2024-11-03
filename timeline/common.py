@@ -1,3 +1,4 @@
+import sys
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
@@ -6,7 +7,7 @@ from PySide6.QtWidgets import QApplication, QSpinBox
 from utils import updateTimelineReceiver
 
 
-class Element(ABC):
+class TimelineElement(ABC):
     MIN_LENGTH = 1
     SAVED_ATTRIBUTES = ["start", "length"]
 
@@ -46,12 +47,16 @@ class Element(ABC):
     def getWidget(self):
         return self.widget
 
-    def as_dict(self):
-        out = {}
+    def save(self):
+        out = {"type": self.__class__.__name__}
         for attr in self.SAVED_ATTRIBUTES:
             out[attr] = getattr(self, attr)
         return out
 
+    @classmethod
+    def load(cls, type, **kwargs):
+        element_type = getattr(sys.modules["timeline"], type)
+        return element_type(**kwargs)
 
 class State(Enum):
     NONE = auto()

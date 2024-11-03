@@ -10,12 +10,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QSpinBox, QLineEdit
 
 import theme
-from .common import Element, State
-from elements import Scene
+from .common import TimelineElement, State
+from project import Scene
 from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
-class Cue(Element):
+class Cue(TimelineElement):
     ROUNDING_RADIUS = 3
     MIN_LENGTH = 1
     TEXT_LEFT_OFFSET = 3
@@ -86,7 +86,7 @@ class SceneCue(Cue):
         super().__init__(start, length)
 
     def getColor(self):
-        return self.scene.color
+        return self.scene.qcolor
 
     def getText(self):
         return f"{self.cue}\n{self.scene.name}"

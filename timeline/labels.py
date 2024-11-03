@@ -8,11 +8,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QLineEdit
 
 import theme
-from .common import Element, State
+from .common import TimelineElement, State
 from utils import widgetWithLabel, updateTimelineReceiver, textWidth
 
 
-class Label(Element):
+class Label(TimelineElement):
     SAVED_ATTRIBUTES = ["start", "length", "text"]
     TEXT_LEFT_OFFSET = 2
     TEXT_TOP_OFFSET = 2
