@@ -436,8 +436,7 @@ class Timeline(QWidget):
                     kwargs["length"] = 1000
                 element = element_type(**kwargs)
                 row.add(element)
-                self.update()
-                saveProject()
+                QApplication.instance().updateTimeline.emit()
                 self.select(element)
                 break
 
@@ -475,8 +474,5 @@ class Timeline(QWidget):
 
     def updateTimeline(self):
         saveProject()
-        self.update()
-
-    def update(self):
         self.updateWidth()
-        super().update()
+        self.update()
