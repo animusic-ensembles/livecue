@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel
 from PySide6.QtGui import QFontMetrics
 
@@ -19,8 +21,6 @@ def updateTimelineReceiver(*args):
 def saveProject(*args):
     QApplication.instance().saveProject.emit()
 
-TEXT_WIDTH_CACHE = {}
+@lru_cache(maxsize=None)
 def textWidth(font, text):
-    if (font, text) not in TEXT_WIDTH_CACHE:
-        TEXT_WIDTH_CACHE[(font, text)] = QFontMetrics(font).horizontalAdvance(text)
-    return TEXT_WIDTH_CACHE[(font, text)]
+    return QFontMetrics(font).horizontalAdvance(text)

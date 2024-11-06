@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import lru_cache
 
 from PySide6.QtGui import (
     QPainterPath,
@@ -155,12 +156,19 @@ class TimeClock(Time):
     def get_name(self):
         return f"◷ {self.duration // 60}:{self.duration%60:02d}"
 
-    def markings(self):
-        x = self.start
-        for i in range(self.duration):
-            yield x, f"{i // 60}:{i%60:02d}"
+    @classmethod
+    @lru_cache
+    def _markings(cls, start, duration):
+        out = []
+        x = start
+        for i in range(duration):
+            out.append((x, f"{i // 60}:{i%60:02d}"))
             x += theme.PIXELS_PER_SECOND
-        yield x, " "
+        out.append((x, " "))
+        return out
+
+    def markings(self):
+        return TimeClock._markings(self.start, self.duration)
 
     def get_marking_label_width(self):
         return theme.PIXELS_PER_SECOND
@@ -238,18 +246,25 @@ class TimeMusic(Time):
     def get_name(self):
         return f"♩={self.bpm}"
 
-    def markings(self):
-        x = self.start
-        if self.starting_beat != 1:
-            yield x, f"{self.starting_bar}"
-        for beat in range(self.duration):
-            offset_beat = beat + self.starting_beat - 1
-            if offset_beat % self.beats_per_bar == 0:
-                yield x, f"{self.starting_bar + offset_beat // self.beats_per_bar}"
+    @classmethod
+    @lru_cache
+    def _markings(cls, start, duration, bpm, beats_per_bar, starting_beat, starting_bar, pixels_per_beat):
+        out = []
+        x = start
+        if starting_beat != 1:
+            out.append((x, f"{starting_bar}"))
+        for beat in range(duration):
+            offset_beat = beat + starting_beat - 1
+            if offset_beat % beats_per_bar == 0:
+                out.append((x, f"{starting_bar + offset_beat // beats_per_bar}"))
             else:
-                yield x, ""
-            x += self.get_pixels_per_beat()
-        yield x, " "
+                out.append((x, ""))
+            x += pixels_per_beat
+        out.append((x, " "))
+        return out
+
+    def markings(self):
+        return TimeMusic._markings(self.start, self.duration, self.bpm, self.beats_per_bar, self.starting_beat, self.starting_bar, self.get_pixels_per_beat())
     
     def get_marking_label_width(self):
         return self.get_pixels_per_beat() * self.beats_per_bar
