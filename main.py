@@ -51,7 +51,7 @@ class PresetsTab(QWidget):
             i = 0
             for item in section["items"]:
                 button = QPushButton(item["label"])
-                button.clicked.connect(tab.element_adder(getattr(sys.modules[__name__], item["type"]), **item["kwargs"]))
+                button.clicked.connect(tab.element_adder(getattr(sys.modules["timeline"], item["type"]), **item["kwargs"]))
                 section_layout.addWidget(button, i // tab.COLUMNS, i % tab.COLUMNS)
                 i += 1
             # Add blanks to fill columns
