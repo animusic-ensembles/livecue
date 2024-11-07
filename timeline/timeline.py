@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QSizePolicy,
 )
-from PySide6.QtCore import Qt, QRect, QRectF
+from PySide6.QtCore import Qt, QPoint, QRect, QRectF, QTimer
 
 import theme
 from utils import chain, textWidth, saveProject
@@ -81,7 +81,7 @@ class Row(ABC):
                 state = State.SELECTED
             elem.paint(painter, rect, state)
 
-    def snaps(self, exclude_element):
+    def snaps(self, exclude_element=None):
         for elem in self.elements:
             if elem == exclude_element:
                 continue
@@ -114,13 +114,17 @@ class TimeRow(Row):
     HEIGHT = 40
     ALLOWED_TYPES = [TimeClock, TimeMusic]
 
-    def snaps(self, exclude_element):
+    def snaps(self, exclude_element=None, coarse=False):
         super().snaps(exclude_element)
         for time in self.elements:
             if time == exclude_element:
                 continue
-            for marking, _ in time.markings():
-                yield marking
+            for marking, label in time.markings():
+                if coarse:
+                    if label:
+                        yield marking
+                else:
+                    yield marking
 
 
 class GuideRow(Row):
@@ -159,12 +163,21 @@ class Timeline(QWidget):
     # Snapping
     SNAP_MARKING_PIXELS = 240
 
+    # Drawing
+    PLAYHEAD_TOP_OFFSET = 2
+    PLAYHEAD_BOTTOM_OFFSET = 2
+
+    # Playback
+    TIMER_INTERVAL = 40
+
     def __init__(self, hboxlayout, scale=0.05):
         super().__init__()
         QApplication.instance().updateTimeline.connect(self.updateTimeline)
         self.hboxlayout = hboxlayout
         self.scale = scale
         self.rows = []
+        self.total_row_height = 0
+        self.playhead_height = 0
 
         self.selected_element = None
         self.hovering_element = None
@@ -179,6 +192,14 @@ class Timeline(QWidget):
         self.potential_moving_element = None
         self.moving_element = None
         self.moving_old_start = 0
+
+        self.seeking = False
+        self.playing = False
+        self.playhead = 0
+        self.accurate_playhead = 0
+        self.play_timer = None
+        self.playing_elements = set()
+        self.next_elements = set()
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -195,7 +216,7 @@ class Timeline(QWidget):
             # Scroll to maintain relative position of cursor on the timeline.
             mouse_pos = self.mapFromGlobal(QCursor.pos())
             new_value = (mouse_pos.x()) * self.scale / old_scale - (mouse_pos.x() - scroll_bar.value())
-            self.update()
+            self.updateTimeline()
             scroll_bar.setValue(new_value)
         else:
             scroll_bar.setValue(
@@ -223,25 +244,31 @@ class Timeline(QWidget):
     def mouseButtonEvent(self, event):
         if Qt.MouseButton.LeftButton & event.buttons():
             # Try each in order:
-            # 1) Start resizing an object
-            # 2) Mark an object for movement
+            # 1) Start seeking
+            # 2) Start resizing an object
+            # 3) Mark an object for movement
             #
             # Note: Starting a movement happens when the mouse moves *after* a
             # click so it's handled in mouseMoveEvent()
-            if self.potential_resizing_element:
+            if self.mouseInSeekArea(event):
+                self.seeking = True
+            elif self.potential_resizing_element:
                 self.resizing_element = self.potential_resizing_element
                 self.handleResize(event, start=True)
             elif self.hovering_element:
                 self.potential_moving_element = self.hovering_element
         else:
             # Try each in order:
-            # 1) Stop resizing an object
-            # 2) Stop moving an object
-            # 3) Select the object marked for movement that didn't move
-            # 4) Deselect an object, because the press must not have been over
+            # 1) Stop seeking
+            # 2) Stop resizing an object
+            # 3) Stop moving an object
+            # 4) Select the object marked for movement that didn't move
+            # 5) Deselect an object, because the press must not have been over
             #    an object (i.e. self.potential_moving_element = None)
             #
-            if self.resizing_element:
+            if self.seeking:
+                self.seeking = False
+            elif self.resizing_element:
                 self.handleResize(event, stop=True)
                 self.resizing_element = None
             elif self.moving_element:
@@ -292,11 +319,33 @@ class Timeline(QWidget):
                     self.resizing_element.length = snap - self.resizing_element.start
                     break
 
-    def snaps(self, exclude_element):
+    def snaps(self, exclude_element=None):
         yield 0
+        yield self.playhead
         for row in self.rows:
             for snap in row.snaps(exclude_element):
                 yield snap
+
+    def fineTimeSnaps(self):
+        yield 0
+        for row in self.rows:
+            if isinstance(row, TimeRow):
+                for snap in row.snaps():
+                    yield snap
+
+    def coarseTimeSnaps(self):
+        yield 0
+        for row in self.rows:
+            if isinstance(row, TimeRow):
+                for snap in row.snaps(coarse=True):
+                    yield snap
+
+    def cueSnaps(self):
+        for row in self.rows:
+            if isinstance(row, (SceneRow, LightingRow)):
+                for element in row.elements:
+                    yield element.start
+                    yield element.start + element.length
 
     def handleMove(self, event, start=False, stop=False):
         if start:
@@ -338,32 +387,42 @@ class Timeline(QWidget):
             for elem, rect in row.elementsRects():
                 yield elem, rect.adjusted(0, y, 0, y)
 
+    def mouseInSeekArea(self, event):
+        return self.playhead_height < event.position().y() < self.playhead_height + TimeRow.HEIGHT - Time.TEXT_HEIGHT
+
     def mouseMoveEvent(self, event):
+        # Seek playhead
+        if self.seeking and self.mouseInSeekArea(event):
+            self.playhead = self.accurate_playhead = event.position().x() / self.scale
+            self.updatePlayhead()
+
         # Set hovering object
         self.hovering_element = None
-        for obj, rect in self.elementsRects():
-            if rect.contains(event.position()):
-                self.hovering_element = obj
-                break
+        if not self.mouseInSeekArea(event):
+            for obj, rect in self.elementsRects():
+                if rect.contains(event.position()):
+                    self.hovering_element = obj
+                    break
 
         # Check object resize handles
         self.potential_resizing_element = None
-        for obj, rect in self.elementsRects():
-            left_rect = rect.adjusted(
-                -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
-            )
-            if left_rect.contains(event.position()):
-                self.setCursor(QCursor(Qt.SplitHCursor))
-                self.potential_resizing_element = obj
-                break
+        if not self.mouseInSeekArea(event):
+            for obj, rect in self.elementsRects():
+                left_rect = rect.adjusted(
+                    -self.RESIZE_OUTER_BOUND, 0, self.RESIZE_INNER_BOUND - rect.width(), 0
+                )
+                if left_rect.contains(event.position()):
+                    self.setCursor(QCursor(Qt.SplitHCursor))
+                    self.potential_resizing_element = obj
+                    break
 
-            right_rect = rect.adjusted(
-                rect.width() - self.RESIZE_INNER_BOUND, 0, self.RESIZE_OUTER_BOUND, 0
-            )
-            if right_rect.contains(event.position()):
-                self.setCursor(QCursor(Qt.SplitHCursor))
-                self.potential_resizing_element = obj
-                break
+                right_rect = rect.adjusted(
+                    rect.width() - self.RESIZE_INNER_BOUND, 0, self.RESIZE_OUTER_BOUND, 0
+                )
+                if right_rect.contains(event.position()):
+                    self.setCursor(QCursor(Qt.SplitHCursor))
+                    self.potential_resizing_element = obj
+                    break
 
         # Only reset cursor if not resizing and not hovering a handle
         if not self.resizing_element and not self.potential_resizing_element:
@@ -382,6 +441,7 @@ class Timeline(QWidget):
         self.update()
 
     def keyPressEvent(self, event):
+        modifiers = QApplication.keyboardModifiers()
         if event.key() == Qt.Key_Delete:
             if not self.selected_element:
                 super().keyPressEvent(event)
@@ -397,6 +457,64 @@ class Timeline(QWidget):
                     # Select previous element
                     if i > 0:
                         self.select(row.elements[i - 1])
+        elif event.key() == Qt.Key_P:
+            if self.playing:
+                self.stopPlaying()
+            else:
+                self.startPlaying()
+            return
+        elif event.key() == Qt.Key_Left:
+            if modifiers & Qt.ShiftModifier and modifiers & Qt.ControlModifier:
+                pass
+            elif modifiers & Qt.ShiftModifier:
+                self.seekRelative(-1)
+            elif modifiers & Qt.ControlModifier:
+                prevSnap = 0
+                for snap in self.coarseTimeSnaps():
+                    if snap > prevSnap and snap < self.accurate_playhead:
+                        prevSnap = snap
+                self.seekAbsolute(prevSnap)
+            else:
+                prevSnap = 0
+                for snap in self.fineTimeSnaps():
+                    if snap > prevSnap and snap < self.accurate_playhead:
+                        prevSnap = snap
+                self.seekAbsolute(prevSnap)
+            return
+        elif event.key() == Qt.Key_Right:
+            if modifiers & Qt.ShiftModifier and modifiers & Qt.ControlModifier:
+                pass
+            elif modifiers & Qt.ShiftModifier:
+                self.seekRelative(1)
+            elif modifiers & Qt.ControlModifier:
+                # TODO: don't hardcode
+                nextSnap = 10e8
+                for snap in self.coarseTimeSnaps():
+                    if snap < nextSnap and snap > self.accurate_playhead:
+                        nextSnap = snap
+                self.seekAbsolute(nextSnap)
+            else:
+                # TODO: don't hardcode
+                nextSnap = 10e8
+                for snap in self.fineTimeSnaps():
+                    if snap < nextSnap and snap > self.accurate_playhead:
+                        nextSnap = snap
+                self.seekAbsolute(nextSnap)
+            return
+        elif event.key() == Qt.Key_Space:
+            if modifiers & Qt.ShiftModifier:
+                prevSnap = 0
+                for snap in self.cueSnaps():
+                    if snap > prevSnap and snap < self.accurate_playhead:
+                        prevSnap = snap
+                self.seekAbsolute(prevSnap)
+            else:
+                # TODO: don't hardcode
+                nextSnap = 10e8
+                for snap in self.cueSnaps():
+                    if snap < nextSnap and snap > self.accurate_playhead:
+                        nextSnap = snap
+                self.seekAbsolute(nextSnap)
         super().keyPressEvent(event)
 
     def paintEvent(self, event):
@@ -425,6 +543,23 @@ class Timeline(QWidget):
             painter.setRenderHint(QPainter.Antialiasing, False)
             painter.drawLine(0, y + row.HEIGHT, self.size().width(), y + row.HEIGHT)
 
+        # Playhead
+        pen = QPen()
+        pen.setColor(theme.PLAYHEAD)
+        pen.setWidth(1)
+        brush = QBrush()
+        brush.setColor(theme.PLAYHEAD)
+        brush.setStyle(Qt.SolidPattern)
+        painter.setPen(pen)
+        painter.setBrush(brush)
+        painter.drawLine(self.playhead * self.scale, 0, self.playhead * self.scale, self.total_row_height)
+        points = [
+            QPoint(self.playhead * self.scale, self.playhead_height + self.PLAYHEAD_TOP_OFFSET),
+            QPoint(self.playhead * self.scale + 10, self.playhead_height + (TimeRow.HEIGHT - Time.TEXT_HEIGHT) / 2),
+            QPoint(self.playhead * self.scale, self.playhead_height + (TimeRow.HEIGHT - Time.TEXT_HEIGHT) - self.PLAYHEAD_BOTTOM_OFFSET),
+        ]
+        painter.drawPolygon(points)
+
     def add(self, element_type, **kwargs):
         for row in self.rows:
             if row.canContain(element_type):
@@ -450,8 +585,53 @@ class Timeline(QWidget):
             self.hboxlayout.removeWidget(self.selected_element.getWidget())
             self.selected_element.getWidget().hide()
             self.selected_element = None
+        QApplication.instance().updateTimeline.emit()
+
+    def startPlaying(self):
+        self.play_timer = QTimer()
+        self.play_timer.setInterval(self.TIMER_INTERVAL)
+        self.play_timer.timeout.connect(self.playTimerTick)
+        self.play_timer.start()
+        self.playing = True
+
+    def playTimerTick(self):
+        self.accurate_playhead += self.TIMER_INTERVAL * theme.PIXELS_PER_SECOND / 1000
+        self.playhead = int(self.accurate_playhead)
+        self.updatePlayhead()
+
+    def stopPlaying(self):
+        self.play_timer.stop()
+        self.play_timer = None
+        self.playing = False
+
+    def seekRelative(self, delta):
+        self.seekAbsolute(self.accurate_playhead + delta)
+
+    def seekAbsolute(self, value):
+        self.playhead = self.accurate_playhead = value
+        self.updatePlayhead()
+
+    def updatePlayhead(self):
+        new_playing = set()
+        new_next = set()
+        for row in self.rows:
+            next_element = False
+            for element in row.elements:
+                if self.playhead < element.start:
+                    new_next.add(element)
+                    break
+                if element.start <= self.playhead < element.start + element.length:
+                    new_playing.add(element)
+                    next_element = True
+        for element in self.playing_elements - new_playing:
+            element.exit()
+        for element in new_playing - self.playing_elements:
+            element.enter()
+        for element in new_next - self.next_elements:
+            element.enterNextInRow()
+        self.playing_elements = new_playing
+        self.next_elements = new_next
         self.update()
-        saveProject()
 
     def save(self):
         return {

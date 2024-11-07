@@ -53,6 +53,18 @@ class TimelineElement(ABC):
             out[attr] = getattr(self, attr)
         return out
 
+    # Callback for when this element will be the next one entered in this row.
+    def enterNextInRow(self):
+        pass
+
+    # Callback for when this element is entered in the timeline.
+    def enter(self):
+        pass
+
+    # Callback for when this element is exited in the timeline.
+    def exit(self):
+        pass
+
     @classmethod
     def load(cls, type, **kwargs):
         element_type = getattr(sys.modules["timeline"], type)
