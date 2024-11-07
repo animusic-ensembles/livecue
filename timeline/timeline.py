@@ -578,6 +578,16 @@ class Timeline(QWidget):
                 self.select(element)
                 break
 
+    def addRow(self, row):
+        self.rows.append(row)
+        self.total_row_height = sum([row.HEIGHT for row in self.rows])
+        self.playhead_height = 0
+        for row in self.rows:
+            if isinstance(row, TimeRow):
+                self.playhead_height += Time.TEXT_HEIGHT
+                break
+            self.playhead_height += row.HEIGHT
+
     def remove(self, element, row=None):
         if not row:
             for r in self.rows:
@@ -645,7 +655,8 @@ class Timeline(QWidget):
     @classmethod
     def load(cls, hboxlayout, scale, rows):
         timeline = cls(hboxlayout, scale)
-        timeline.rows = [Row.load(timeline, **row) for row in rows]
+        for row in rows:
+            timeline.addRow(Row.load(timeline, **row))
         timeline.update()
         return timeline
 
