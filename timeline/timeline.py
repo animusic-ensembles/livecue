@@ -208,7 +208,7 @@ class Timeline(QWidget):
     def wheelEvent(self, event):
         scroll_bar = self.parent().parent().horizontalScrollBar()
         modifiers = QApplication.keyboardModifiers()
-        if modifiers == Qt.ControlModifier:
+        if modifiers & Qt.ControlModifier:
             old_scale = self.scale
             self.scale += event.angleDelta().y() * self.scale * self.SCROLL_SCALE_MULTIPLIER
             self.scale = max(min(self.scale, self.SCALE_MAX), self.SCALE_MIN)
@@ -280,6 +280,9 @@ class Timeline(QWidget):
                 self.select(None)
             self.potential_moving_element = None
         self.update()
+
+        # Save on any mouse button press which generally corresponds to an
+        # action worth saving (e.g. let go of a move).
         saveProject()
 
     def handleResize(self, event, start=False, stop=False):
